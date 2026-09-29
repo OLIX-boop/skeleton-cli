@@ -5,6 +5,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0]
+
 ### Added
 
 - `--query <text>` (config `query`, MCP `query`): focus the files most relevant to a task description, ranked
@@ -27,13 +29,6 @@ All notable changes to this project are documented here. The format follows
   `--no-cache`, `ASTPACK_CACHE_DIR`, `ASTPACK_NO_CACHE`): re-packing VS Code drops from ~130 s to ~11 s.
 - `--related [depth]` (config `related`, MCP `related`): also include in full the files within `depth` import
   hops of a focused file, in either direction. A token budget compresses them after every other file.
-
-### Changed
-
-- Swift uses tree-sitter-swift 0.7.1, compiled from source, with a fix for scanner state leaking from a file
-  with syntax errors into every later file.
-- C# and Swift files whose `#if` branches split a declaration are parsed again with the first branch of each
-  chain, so they no longer report syntax errors (Newtonsoft.Json: 66 → 0 files, Alamofire: 10 → 6).
 
 ## [0.1.0]
 
@@ -63,5 +58,6 @@ First release.
 - A GitHub Action (`action.yml`) with token outputs and a job summary.
 - Programmatic API (`pack`, `render`, `skeletonize`, `fitToBudget`, `computeStats`, …).
 
-[Unreleased]: https://github.com/OLIX-boop/skeleton-cli/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/OLIX-boop/skeleton-cli/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/OLIX-boop/skeleton-cli/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/OLIX-boop/skeleton-cli/releases/tag/v0.1.0

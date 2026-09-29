@@ -1,6 +1,6 @@
 {
   "name": "astpack",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Compress a codebase into an LLM-ready prompt by stripping function bodies with Tree-sitter (Skeleton Mode).",
   "keywords": [
     "llm",
