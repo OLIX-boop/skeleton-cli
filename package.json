@@ -1,0 +1,43 @@
+{
+  "name": "astpack",
+  "version": "0.1.0",
+  "description": "Compress a codebase into an LLM-ready prompt by stripping function bodies with Tree-sitter (Skeleton Mode).",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "llm",
+    "tree-sitter",
+    "ast",
+    "prompt",
+    "context",
+    "skeleton",
+    "cli"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "tree-sitter-wasms": "^0.1.13",
+    "web-tree-sitter": "~0.25.10"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^22.20.4",
+    "eslint": "^9.39.5",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.71.0",
+    "vitest": "^3.2.7"
+  }
+}
