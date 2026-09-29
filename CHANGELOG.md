@@ -29,6 +29,7 @@ First release.
 - `astpack mcp`, a Model Context Protocol server with `pack_codebase`, `estimate_tokens` and `skeleton_file`.
 - `--dry-run`, `--stats-json` and `--watch`; transforms and token counts are cached in memory, so repeated
   MCP calls and watch rebuilds only redo changed files.
+- `astpack tree` token map per directory, and an `extensions` config option for custom file types.
 - A GitHub Action (`action.yml`) with token outputs and a job summary.
 - Programmatic API (`pack`, `render`, `skeletonize`, `fitToBudget`, `computeStats`, …).
 

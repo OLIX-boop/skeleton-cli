@@ -172,3 +172,34 @@ describe('presets', () => {
     expect((await cli(['--preset', 'nope'], root)).code).not.toBe(0);
   });
 });
+
+describe('extensions', () => {
+  it('maps extra extensions and file names to languages', async () => {
+    const root = await project({
+      'astpack.config.json': JSON.stringify({ stdout: true, extensions: { '.es6': 'javascript', Jenkinsfile: 'bash' } }),
+      'legacy.es6': 'function old() {\n  return 1;\n}\n',
+      Jenkinsfile: 'deploy() {\n  echo hi\n}\n',
+    });
+    const { stdout } = await cli(['-q'], root);
+    expect(stdout).toContain('function old() { /* ... */ }');
+    expect(stdout).toContain("deploy() { : '...'; }");
+  });
+
+  it('validates language ids', () => {
+    expect(() => validateConfig({ extensions: { '.x': 'cobol' } })).toThrow(/language ids/);
+    expect(() => validateConfig({ extensions: ['.x'] })).toThrow(/object mapping/);
+  });
+});
+
+describe('astpack tree', () => {
+  it('shows token totals per directory', async () => {
+    const root = await project();
+    const { code, stdout } = await cli(['tree', '--no-color', '--min', '0'], root);
+    expect(code).toBe(0);
+    expect(stdout).toMatch(/^[\d,]+ tokens \(skeleton; [\d,]+ raw, 3 files\)/);
+    expect(stdout).toMatch(/├── src\/ \S+ \d+%.*\(2 files\)/);
+    expect(stdout).toContain('a.ts');
+    const full = await cli(['tree', '--no-color', '--full'], root);
+    expect(full.stdout).toContain('(full;');
+  });
+});

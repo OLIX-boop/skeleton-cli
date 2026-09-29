@@ -1,6 +1,9 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { LANGUAGES } from './languages/index.js';
+
+const LANGUAGE_IDS = Object.keys(LANGUAGES);
 
 /** Config file names, in lookup order. */
 export const CONFIG_FILES = ['astpack.config.json', '.astpackrc.json', '.astpackrc'] as const;
@@ -35,9 +38,10 @@ export interface AstpackConfig {
   models?: string[];
   top?: number;
   preset?: string;
+  extensions?: Record<string, string>;
 }
 
-type Kind = 'string' | 'boolean' | 'number' | 'string[]' | 'number|string' | 'string|boolean' | readonly string[];
+type Kind = 'string' | 'boolean' | 'number' | 'string[]' | 'number|string' | 'string|boolean' | 'extensions' | readonly string[];
 
 export const CONFIG_SCHEMA: Record<keyof AstpackConfig, { kind: Kind; description: string }> = {
   output: { kind: 'string', description: 'Output file (relative to the config file).' },
@@ -68,6 +72,10 @@ export const CONFIG_SCHEMA: Record<keyof AstpackConfig, { kind: Kind; descriptio
   models: { kind: 'string[]', description: 'Models to price in the summary.' },
   top: { kind: 'number', description: 'Number of largest files listed in the summary.' },
   preset: { kind: ['review', 'explain', 'refactor', 'debug'], description: 'Ready-made options and instructions for a task.' },
+  extensions: {
+    kind: 'extensions',
+    description: 'Map extra extensions (".es6") or file names ("Jenkinsfile") to a language id, e.g. { ".es6": "javascript" }.',
+  },
 };
 
 export class ConfigError extends Error {}
@@ -98,6 +106,14 @@ function checkKind(key: string, value: unknown, kind: Kind): void {
       break;
     case 'string|boolean':
       if (typeof value !== 'string' && typeof value !== 'boolean') fail('a string or boolean');
+      break;
+    case 'extensions':
+      if (typeof value !== 'object' || value === null || Array.isArray(value)) fail('an object mapping extensions to language ids');
+      for (const [ext, id] of Object.entries(value as Record<string, unknown>)) {
+        if (typeof id !== 'string' || !(LANGUAGE_IDS as readonly string[]).includes(id)) {
+          fail(`an object whose values are language ids (${LANGUAGE_IDS.join(', ')}); "${ext}" maps to ${JSON.stringify(id)}`);
+        }
+      }
       break;
   }
 }
@@ -188,6 +204,7 @@ export function configJsonSchema(): Record<string, unknown> {
     else if (kind === 'number|string') type = { type: ['number', 'string'] };
     else if (kind === 'string|boolean') type = { type: ['string', 'boolean'] };
     else if (kind === 'number') type = { type: 'number', minimum: 0 };
+    else if (kind === 'extensions') type = { type: 'object', additionalProperties: { type: 'string', enum: [...LANGUAGE_IDS] } };
     else type = { type: kind };
     properties[key] = { ...(type as object), description };
   }

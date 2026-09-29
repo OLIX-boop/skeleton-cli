@@ -46,7 +46,27 @@ const BY_EXTENSION = new Map<string, LanguageSpec>(
   Object.values(LANGUAGES).flatMap((spec) => spec.extensions.map((ext) => [ext, spec] as const)),
 );
 
+/**
+ * Map extra file extensions (e.g. `.es6`) or exact file names (e.g. `Jenkinsfile`) to a
+ * supported language. Applies to the whole process.
+ */
+export function registerExtensions(mapping: Readonly<Record<string, LanguageId>>): void {
+  for (const [key, id] of Object.entries(mapping)) {
+    const spec = LANGUAGES[id];
+    if (!spec) throw new Error(`Unknown language "${id}" for ${key}`);
+    if (key.startsWith('.')) BY_EXTENSION.set(key.toLowerCase(), spec);
+    else BY_NAME.set(key, spec);
+  }
+}
+
+const BY_NAME = new Map<string, LanguageSpec>();
+
 /** Resolve the language for a file path by extension, or `undefined` if unsupported. */
 export function languageForPath(filePath: string): LanguageSpec | undefined {
+  if (BY_NAME.size) {
+    const name = filePath.slice(Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\')) + 1);
+    const byName = BY_NAME.get(name);
+    if (byName) return byName;
+  }
   return BY_EXTENSION.get(extname(filePath).toLowerCase());
 }

@@ -6,6 +6,7 @@ import { fitToBudget, type BudgetReport } from '../budget.js';
 import { dependencyGraph } from '../deps.js';
 import { findConfig, loadConfig, type AstpackConfig } from '../config.js';
 import { PRESETS } from '../presets.js';
+import { registerExtensions, type LanguageId } from '../languages/index.js';
 import { changedFiles, cloneRemote, diffText, parseRemote, resolveRef } from '../git.js';
 import { OUTPUT_EXTENSIONS, render } from '../output/index.js';
 import { pack, type PackOptions } from '../pack.js';
@@ -225,6 +226,8 @@ export async function packCommand(directory: string, command: Command, io: CliIO
       ) as AstpackConfig;
       opts = applyConfig(opts, unset, (key) => command.getOptionValueSource(key) === 'cli');
     }
+
+    if (opts.extensions) registerExtensions(opts.extensions as Record<string, LanguageId>);
 
     const summaryStream = opts.stdout ? io.stderr : io.stdout;
     const colors = makeColors(opts.color && shouldColor(summaryStream));

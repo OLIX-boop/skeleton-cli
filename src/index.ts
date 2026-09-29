@@ -15,6 +15,7 @@ export {
   EMBEDDED,
   languageForPath,
   embeddedForPath,
+  registerExtensions,
   type EmbeddedSpec,
   type LanguageId,
   type LanguageSpec,

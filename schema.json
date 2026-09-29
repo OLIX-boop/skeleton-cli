@@ -169,6 +169,34 @@
         "debug"
       ],
       "description": "Ready-made options and instructions for a task."
+    },
+    "extensions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "enum": [
+          "typescript",
+          "tsx",
+          "javascript",
+          "python",
+          "go",
+          "rust",
+          "java",
+          "csharp",
+          "c",
+          "cpp",
+          "ruby",
+          "php",
+          "kotlin",
+          "swift",
+          "scala",
+          "dart",
+          "elixir",
+          "bash",
+          "lua"
+        ]
+      },
+      "description": "Map extra extensions (\".es6\") or file names (\"Jenkinsfile\") to a language id, e.g. { \".es6\": \"javascript\" }."
     }
   }
 }

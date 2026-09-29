@@ -323,6 +323,18 @@ declaration outside function bodies, unless they look like commented-out code. F
 
 ### Filtering
 
+To see where a project's tokens go before choosing `--focus` or `--ignore`, run `astpack tree`:
+
+```text
+51,331 tokens (skeleton; 117,573 raw, 117 files)
+├── src/ 26k 51% −57% (68 files)
+│   ├── languages/ 6.1k 12% −34% (20 files)
+│   ├── engine/ 3.0k 5.9% −64% (6 files)
+│   └── … 5 more under 1.0% each
+├── test/ 14k 27% −64% (30 files)
+└── README.md 2.2k 4.2% −74%
+```
+
 astpack decides what to include in this order:
 
 1. **Built-in excludes** (`--no-default-ignores` to disable): VCS and dependency directories (`.git`,
@@ -421,6 +433,7 @@ This is a safety net, not a guarantee. Keep secrets out of your repository.
 | --- | --- |
 | `astpack init [directory] [--force]` | Create `astpack.config.json` and a commented `.packignore`. |
 | `astpack mcp [roots...]` | Run the MCP server over stdio (see [MCP server](#mcp-server)). |
+| `astpack tree [directory] [--depth n] [--min pct] [--full\|--outline]` | Show where the tokens are: a directory tree with packed and raw token totals, largest first. |
 
 Environment: `NO_COLOR` / `FORCE_COLOR` control colours; `ASTPACK_WASM_TIERUP=1` keeps V8's default
 WebAssembly tiering (see [How it works](#how-it-works)).
@@ -444,6 +457,9 @@ merged; paths are relative to the config file.
   "models": ["claude-sonnet-5.5", "gpt-4o"]
 }
 ```
+
+`extensions` maps unusual file extensions or names to a supported language:
+`{ "extensions": { ".es6": "javascript", "Jenkinsfile": "bash" } }`.
 
 `--claude-tokens` is deliberately not configurable from a file: it uploads the document, so a repository you
 cloned can't switch it on. `astpack init` writes a starter file. The published [`schema.json`](schema.json) gives editors completion and

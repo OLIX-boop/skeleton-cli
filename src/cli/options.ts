@@ -33,6 +33,7 @@ export interface PackCliOptions {
   remote?: string;
   config?: string | false;
   preset?: string;
+  extensions?: Record<string, string>;
   models: string[];
   claudeTokens?: boolean;
   top: number;

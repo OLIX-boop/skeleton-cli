@@ -5,6 +5,7 @@ import { MODELS } from '../tokens/index.js';
 import { VERSION } from '../version.js';
 import { parsePositiveInt, parseSize, parseTokenCount } from './format.js';
 import { initCommand } from './init-command.js';
+import { treeCommand } from './tree-command.js';
 import { packCommand, type CliIO } from './pack-command.js';
 
 export type { CliIO } from './pack-command.js';
@@ -27,6 +28,8 @@ function wrapParser<T>(fn: (v: string) => T) {
 
 export function buildProgram(io: CliIO, setExit: (code: number) => void): Command {
   const program = new Command('astpack');
+  // Options after a subcommand belong to it (`astpack tree --full` vs `astpack --full`).
+  program.enablePositionalOptions();
   program
     .description('Pack a codebase into an LLM-ready prompt, stripping function bodies with Tree-sitter.')
     .version(VERSION, '-v, --version')
@@ -113,6 +116,19 @@ Examples:
     .option('--force', 'overwrite an existing config file')
     .action(async (directory: string, options: { force?: boolean }) => {
       setExit(await initCommand(directory, options, io));
+    });
+
+  program
+    .command('tree')
+    .description('show where the tokens are: a directory tree with packed and raw token counts')
+    .argument('[directory]', 'project root', '.')
+    .option('--depth <n>', 'directory levels to show', wrapParser(parsePositiveInt), 3)
+    .option('--min <percent>', 'hide entries below this share of the total', wrapParser(Number), 1)
+    .option('--full', 'measure raw source instead of skeletons')
+    .option('--outline', 'measure outlines instead of skeletons')
+    .option('--no-color', 'disable coloured output')
+    .action(async (directory: string, _opts, command: Command) => {
+      setExit(await treeCommand(directory, command, io));
     });
 
   program
