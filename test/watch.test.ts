@@ -51,7 +51,10 @@ describe('watchLoop', () => {
       signal: controller.signal,
       debounceMs: 50,
     });
-    await sleep(100); // let the watcher start
+    // Let the watcher start and flush late events for the fixture files (macOS FSEvents can
+    // report changes made just before watching began), then count from zero.
+    await sleep(700);
+    runs = 0;
 
     await writeFile(out, 'generated');
     await writeFile(join(t.root, 'out.part2.md'), 'generated');
