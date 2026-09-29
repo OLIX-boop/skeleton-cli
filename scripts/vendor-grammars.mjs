@@ -7,9 +7,10 @@
 // packages themselves. Bump a version below, run this, run the tests, commit.
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { brotliCompressSync, constants } from 'node:zlib';
 
 /** grammar file name (without .wasm) → npm package providing it. */
@@ -37,7 +38,9 @@ const GRAMMARS = {
 };
 
 const work = mkdtempSync(join(tmpdir(), 'astpack-grammars-'));
-const target = new URL('../grammars/', import.meta.url);
+const target = fileURLToPath(new URL('../grammars/', import.meta.url));
+// Build next to the target and swap it in only once everything succeeded.
+const staging = `${target.replace(/[\\/]$/, '')}.staging`;
 const extracted = new Map();
 
 function extract(spec) {
@@ -58,22 +61,25 @@ function findWasm(dir, name) {
 }
 
 try {
-  rmSync(target, { recursive: true, force: true });
-  mkdirSync(target, { recursive: true });
+  rmSync(staging, { recursive: true, force: true });
+  mkdirSync(staging, { recursive: true });
   const manifest = {};
   let raw = 0;
   let packed = 0;
   for (const [name, spec] of Object.entries(GRAMMARS)) {
     const bytes = readFileSync(findWasm(extract(spec), name));
     const compressed = brotliCompressSync(bytes, { params: { [constants.BROTLI_PARAM_QUALITY]: 11 } });
-    writeFileSync(new URL(`${name}.wasm.br`, target), compressed);
+    writeFileSync(join(staging, `${name}.wasm.br`), compressed);
     manifest[name] = { package: spec, sha256: createHash('sha256').update(bytes).digest('hex'), bytes: bytes.length };
     raw += bytes.length;
     packed += compressed.length;
     console.log(`${name.padEnd(24)} ${spec}`);
   }
-  writeFileSync(new URL('manifest.json', target), `${JSON.stringify(manifest, null, 2)}\n`);
+  writeFileSync(join(staging, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+  rmSync(target, { recursive: true, force: true });
+  renameSync(staging, target);
   console.log(`Vendored ${Object.keys(GRAMMARS).length} grammars: ${(raw / 1e6).toFixed(1)} MB -> ${(packed / 1e6).toFixed(1)} MB`);
 } finally {
   rmSync(work, { recursive: true, force: true });
+  rmSync(staging, { recursive: true, force: true });
 }

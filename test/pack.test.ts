@@ -76,6 +76,9 @@ describe('fenceFor', () => {
     ['.env.local', 'dotenv'],
     ['LICENSE', 'text'],
     ['x.unknown', 'text'],
+    ['init.lua', 'lua'],
+    ['src/a.py', 'python'],
+    ['App.vue', 'vue'],
   ])('%s -> %s', (path, fence) => {
     expect(fenceFor(path)).toBe(fence);
   });

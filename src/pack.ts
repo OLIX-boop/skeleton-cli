@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import type { CommentMode } from './languages/types.js';
 import { transformFile, type FallbackLimits, type FileMode, type Strategy } from './engine/transform.js';
 import type { RedactionHit } from './security/secrets.js';
+import { embeddedForPath, languageForPath } from './languages/index.js';
 import { mapLimit } from './util/pool.js';
 import { FocusMatcher, walk, type SkippedEntry, type WalkOptions } from './walker/index.js';
 
@@ -75,6 +76,8 @@ const FENCE_BY_NAME: Record<string, string> = {
 };
 
 export function fenceFor(path: string): string {
+  const language = languageForPath(path) ?? embeddedForPath(path);
+  if (language) return language.fence;
   const name = path.slice(path.lastIndexOf('/') + 1).toLowerCase();
   if (FENCE_BY_NAME[name]) return FENCE_BY_NAME[name];
   if (name === '.env' || name.startsWith('.env.')) return 'dotenv';
