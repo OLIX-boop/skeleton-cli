@@ -1316,12 +1316,38 @@ describe('C# preprocessor directives', () => {
 `);
   });
 
+  it('strips bodies in every branch of a chain, nested chains included', async () => {
+    const src = `class A
+#if NET8_0
+    : IA
+#elif NET6_0
+    : IB
+#else
+    : IC
+#endif
+{
+#if DEBUG
+    void Log() { Console.WriteLine("debug"); }
+#else
+    void Log() { }
+#endif
+    int F() { return 1; }
+}
+`;
+    const result = await skeletonize(src, 'csharp');
+    expect(result.hasErrors).toBe(false);
+    expect(result.code).toContain(`#if DEBUG\n    void Log() ${P}\n#else\n    void Log() ${P}\n#endif`);
+    expect(result.code).toContain(`#elif NET6_0\n    : IB\n#else\n    : IC`);
+    expect(result.code).toContain(`int F() ${P}`);
+    expect(result.strippedBodies).toBe(3);
+  });
+
   it('keeps line offsets when blanking inactive branches', async () => {
     const { blankPreprocessor } = await import('../src/languages/csharp.js');
     const src = '#if A\r\nint a;\r\n#elif B\r\nint b;\r\n#else\r\nint c;\r\n#endif\r\nint d;\r\n';
     const out = blankPreprocessor(src);
-    expect(out.length).toBe(src.length);
-    expect(out.split('\r\n').map((l) => l.trim())).toEqual(['', 'int a;', '', '', '', '', '', 'int d;', '']);
+    expect(out!.length).toBe(src.length);
+    expect(out!.split('\r\n').map((l) => l.trim())).toEqual(['', 'int a;', '', '', '', '', '', 'int d;', '']);
   });
 });
 
@@ -1349,12 +1375,11 @@ describe('Swift conditional compilation', () => {
     #if canImport(Darwin) || canImport(Glibc)
     init() ${P}
     #else
-    init() {
-        value = Date().timeIntervalSince1970
-    }
+    init() ${P}
     #endif
 }
 `);
+    expect(result.strippedBodies).toBe(2);
   });
 });
 

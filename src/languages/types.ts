@@ -101,9 +101,11 @@ export interface LanguageSpec {
   /** Language name used for Markdown code fences. */
   fence: string;
   /**
-   * Rewrite the source before a second parse attempt, used only when the first parse has
+   * Rewrite the source before another parse attempt, used only when the first parse has
    * syntax errors. It must keep every character offset (same length, same line breaks) so
-   * edits computed on it apply to the original text. Used for C# preprocessor directives.
+   * edits computed on it apply to the original text. Used for conditional compilation in C#
+   * and Swift: `branch` n keeps the n-th branch of every `#if` chain (`undefined` when no
+   * chain has that many), so each branch's bodies can be stripped in its own pass.
    */
-  preprocess?(source: string): string;
+  preprocess?(source: string, branch?: number): string | undefined;
 }

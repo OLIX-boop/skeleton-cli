@@ -2,7 +2,7 @@ import type { Node } from 'web-tree-sitter';
 import { LANGUAGES, type LanguageId, type LanguageSpec } from '../languages/index.js';
 import type { CommentMode, RuleContext } from '../languages/types.js';
 import { COMMENT_TYPE, isDirective, isDocComment, removalSpan } from './comments.js';
-import { parseSource } from './parser.js';
+import { getParser, parseSource } from './parser.js';
 
 export interface SkeletonOptions {
   /**
@@ -33,6 +33,7 @@ interface Edit {
   start: number;
   end: number;
   text: string;
+  body?: boolean;
 }
 
 interface Collected {
@@ -103,7 +104,7 @@ function collectEdits(source: string, root: Node, spec: LanguageSpec, context: R
           }
           // Already a placeholder (e.g. re-processing skeleton output): nothing to strip.
           if (source.slice(editStart, editEnd) !== replacement.text) {
-            edits.push({ start: editStart, end: editEnd, text: replacement.text });
+            edits.push({ start: editStart, end: editEnd, text: replacement.text, body: true });
             bodyCount++;
           }
           // Keep walking the rest of the node (e.g. default parameter values may contain
@@ -147,6 +148,40 @@ function applyEdits(source: string, edits: Edit[]): string {
   return out + source.slice(cursor);
 }
 
+/** At most this many `#elif`/`#else` branches per chain get their own pass. */
+const MAX_BRANCH_PASSES = 4;
+
+async function otherBranches(source: string, spec: LanguageSpec, context: RuleContext, bodies: boolean, first: Collected): Promise<Collected> {
+  const parser = await getParser(spec);
+  const all = [...first.edits];
+  for (let branch = 1; branch <= MAX_BRANCH_PASSES; branch++) {
+    const text = spec.preprocess!(source, branch);
+    if (text === undefined) break;
+    if (text.length !== source.length) continue;
+    const tree = parser.parse(text);
+    if (!tree) continue;
+    try {
+      if (!tree.rootNode.hasError) all.push(...collectEdits(text, tree.rootNode, spec, context, bodies).edits);
+    } finally {
+      tree.delete();
+    }
+  }
+  // Code outside `#if` blocks is seen by every pass: keep one copy of each edit, and drop
+  // edits overlapping an earlier one.
+  all.sort((a, b) => a.start - b.start || b.end - a.end);
+  const edits: Edit[] = [];
+  for (const edit of all) {
+    const last = edits.at(-1);
+    if (last && edit.start < last.end) continue;
+    edits.push(edit);
+  }
+  return {
+    edits,
+    bodies: edits.filter((e) => e.body).length,
+    comments: edits.filter((e) => !e.body).length,
+  };
+}
+
 /**
  * Strip implementation bodies from `source`, keeping signatures, types, and structure.
  */
@@ -157,17 +192,23 @@ export async function skeletonize(
 ): Promise<SkeletonResult> {
   const spec = typeof language === 'string' ? LANGUAGES[language] : language;
   const { tree, text: parsed } = await parseSource(spec, source);
+  const context: RuleContext = { placeholder: options.placeholder ?? DEFAULT_PLACEHOLDER, comments: options.comments ?? 'all' };
+  let collected: Collected;
+  let hasErrors: boolean;
   try {
-    const context: RuleContext = { placeholder: options.placeholder ?? DEFAULT_PLACEHOLDER, comments: options.comments ?? 'all' };
     // Edits are computed on the parsed text and applied to the original, whose offsets match.
-    const collected = collectEdits(parsed, tree.rootNode, spec, context, options.bodies ?? true);
-    return {
-      code: applyEdits(source, collected.edits),
-      strippedBodies: collected.bodies,
-      strippedComments: collected.comments,
-      hasErrors: tree.rootNode.hasError,
-    };
+    collected = collectEdits(parsed, tree.rootNode, spec, context, options.bodies ?? true);
+    hasErrors = tree.rootNode.hasError;
   } finally {
     tree.delete();
   }
+  // The first `#if` branch of each chain parsed cleanly: strip the other branches' bodies
+  // too, one pass per branch index, merging the edits of every pass that parses.
+  if (parsed !== source && spec.preprocess) collected = await otherBranches(source, spec, context, options.bodies ?? true, collected);
+  return {
+    code: applyEdits(source, collected.edits),
+    strippedBodies: collected.bodies,
+    strippedComments: collected.comments,
+    hasErrors,
+  };
 }
