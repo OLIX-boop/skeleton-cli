@@ -223,6 +223,7 @@ astpack --stdout | pbcopy                 # pipe it anywhere (the summary goes t
 astpack -c                                # also copy it to the clipboard
 astpack -f xml --instructions "Find the race condition in the job queue."
 astpack --instructions @prompts/review.md # read the instructions from a file
+astpack --watch --focus src/checkout      # keep astpack-output.md up to date while you work
 ```
 
 ### Modes: skeleton, focus, full
@@ -373,6 +374,7 @@ This is a safety net, not a guarantee. Keep secrets out of your repository.
 | `--top <n>` | Largest files listed in the summary (default 5; `0` hides the list). |
 | `-q, --quiet` | Don't print the summary. |
 | `--dry-run` | Compute everything and print the summary, but write nothing. |
+| `-w, --watch` | Keep running and re-pack whenever a file changes (unchanged files are served from an in-memory cache). |
 | `--stats-json <file>` | Also write the summary statistics as JSON (tokens, costs, per-file sizes) — handy in CI. |
 | `--no-color` | Disable colours (also respects `NO_COLOR` / `FORCE_COLOR`). |
 | `-v, --version` | Print the version. |

@@ -25,7 +25,9 @@ First release.
 - Secret redaction (on by default, `--no-redact`).
 - `astpack.config.json` / `.astpackrc` with a JSON Schema, `astpack init`.
 - `astpack mcp`, a Model Context Protocol server with `pack_codebase`, `estimate_tokens` and `skeleton_file`.
-- `--dry-run` and `--stats-json`.
+- `--dry-run`, `--stats-json` and `--watch`; transforms and token counts are cached in memory, so repeated
+  MCP calls and watch rebuilds only redo changed files.
+- A GitHub Action (`action.yml`) with token outputs and a job summary.
 - Programmatic API (`pack`, `render`, `skeletonize`, `fitToBudget`, `computeStats`, …).
 
 [Unreleased]: https://github.com/OLIX-boop/skeleton-cli/compare/v0.1.0...HEAD

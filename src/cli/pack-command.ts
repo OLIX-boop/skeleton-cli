@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, watch } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, dirname, relative, resolve } from 'node:path';
 import type { Command } from 'commander';
@@ -15,7 +15,7 @@ import { VERSION } from '../version.js';
 import { toPosix } from '../walker/rules.js';
 import { copyToClipboard } from './clipboard.js';
 import { makeColors, shouldColor, type Colors } from './colors.js';
-import { formatNumber, parseSize, parseTokenCount } from './format.js';
+import { formatNumber, formatPercent, parseSize, parseTokenCount } from './format.js';
 import type { PackCliOptions } from './options.js';
 import { renderSummary } from './summary.js';
 
@@ -84,6 +84,92 @@ export function statsToJson(stats: PackStats, extra: { budget?: BudgetReport; pa
   };
 }
 
+/** What one pack run produced, for watch-mode status lines. */
+export interface WatchReport {
+  files: number;
+  tokens: number;
+  savedRatio: number;
+  destination: string;
+  /** Files written by the run (never trigger a rebuild). */
+  outputs: string[];
+}
+
+export interface WatchOptions {
+  root: string;
+  outputs: readonly string[];
+  rerun: () => Promise<WatchReport>;
+  io: CliIO;
+  colors: Colors;
+  signal: AbortSignal;
+  /** Quiet period before rebuilding, in ms (default 250). */
+  debounceMs?: number;
+}
+
+const WATCH_IGNORED_SEGMENTS = new Set(['.git', 'node_modules', '.hg', '.svn']);
+
+/** Re-run the pack whenever something under `root` changes, until `signal` aborts. */
+export function watchLoop(options: WatchOptions): Promise<void> {
+  const { root, io, colors, signal } = options;
+  const own = options.outputs.map((p) => {
+    // Part files: out.md -> out.part1.md, out.part2.md, ...
+    const dot = p.lastIndexOf('.');
+    return { exact: p, partPrefix: dot > 0 ? `${p.slice(0, dot)}.part` : `${p}.part` };
+  });
+  const isOwnOutput = (abs: string) => own.some((o) => abs === o.exact || abs.startsWith(o.partPrefix));
+
+  return new Promise<void>((resolveDone) => {
+    io.stderr.write(colors.dim(`Watching ${root} for changes (Ctrl+C to stop)…\n`));
+    let timer: NodeJS.Timeout | undefined;
+    let running = false;
+    let pending = false;
+
+    const rebuild = async () => {
+      if (running) {
+        pending = true;
+        return;
+      }
+      running = true;
+      const started = Date.now();
+      try {
+        const r = await options.rerun();
+        const time = new Date().toLocaleTimeString('en-GB');
+        const saved = r.savedRatio > 0 ? colors.dim(` (−${formatPercent(r.savedRatio)})`) : '';
+        io.stderr.write(
+          `${colors.green('↻')} ${colors.dim(time)} ${formatNumber(r.files)} files · ${formatNumber(r.tokens)} tokens${saved} → ${r.destination} ${colors.dim(`${Date.now() - started}ms`)}\n`,
+        );
+      } catch (error) {
+        io.stderr.write(`${colors.red('error:')} ${(error as Error).message}\n`);
+      } finally {
+        running = false;
+        if (pending && !signal.aborted) {
+          pending = false;
+          schedule();
+        }
+      }
+    };
+    const schedule = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => void rebuild(), options.debounceMs ?? 250);
+    };
+
+    const watcher = watch(root, { recursive: true }, (_event, filename) => {
+      if (filename) {
+        const rel = toPosix(String(filename));
+        if (rel.split('/').some((seg) => WATCH_IGNORED_SEGMENTS.has(seg))) return;
+        if (isOwnOutput(resolve(root, rel))) return;
+      }
+      schedule();
+    });
+    const finish = () => {
+      clearTimeout(timer);
+      watcher.close();
+      resolveDone();
+    };
+    if (signal.aborted) finish();
+    else signal.addEventListener('abort', finish, { once: true });
+  });
+}
+
 function warn(io: CliIO, c: Colors, message: string) {
   io.stderr.write(c.yellow(`warning: ${message}\n`));
 }
@@ -148,128 +234,155 @@ export async function packCommand(directory: string, command: Command, io: CliIO
       focus.push(...changed);
     }
 
-    const outputPath = opts.stdout ? undefined : resolve(io.cwd, opts.output ?? `astpack-output.${OUTPUT_EXTENSIONS[opts.format]}`);
-    const ignore = [...opts.ignore];
-    // Never pack our own output file.
-    if (outputPath) {
-      const rel = toPosix(relative(root, outputPath));
-      if (rel && !rel.startsWith('..')) ignore.push(`/${rel}`, `/${partPath(rel, 0).replace('.part0', '.part*')}`);
-    }
+    const once = async (initial: boolean): Promise<WatchReport> => {
+      const outputPath = opts.stdout ? undefined : resolve(io.cwd, opts.output ?? `astpack-output.${OUTPUT_EXTENSIONS[opts.format]}`);
+      const ignore = [...opts.ignore];
+      // Never pack our own output file.
+      if (outputPath) {
+        const rel = toPosix(relative(root, outputPath));
+        if (rel && !rel.startsWith('..')) ignore.push(`/${rel}`, `/${partPath(rel, 0).replace('.part0', '.part*')}`);
+      }
 
-    const showProgress = !opts.quiet && !!io.stderr.isTTY;
-    const packOptions: PackOptions = {
-      mode: opts.full ? 'full' : 'skeleton',
-      focus,
-      // Relative --focus paths name files inside a remote repository, not the local cwd.
-      cwd: opts.remote ? root : io.cwd,
-      placeholder: opts.placeholder,
-      comments: opts.comments,
-      redact: opts.redact,
-      fallback: {
-        ...(opts.fallbackLines !== undefined ? { maxLines: opts.fallbackLines } : {}),
-        ...(opts.fallbackChars !== undefined ? { maxChars: opts.fallbackChars } : {}),
-      },
-      gitignore: opts.gitignore,
-      packignore: opts.packignore,
-      defaultIgnores: opts.defaultIgnores,
-      ignore,
-      include: opts.include,
-      maxFileSize: opts.maxFileSize,
-      followSymlinks: opts.followSymlinks,
-      onProgress: showProgress
-        ? (done, total) => {
-            if (done === total || done % 25 === 0) io.stderr.write(`\r${errColors.dim(`Packing ${done}/${total} files…`)}`);
-          }
-        : undefined,
-    };
-
-    let result = await pack(root, packOptions);
-    if (showProgress) io.stderr.write('\r\u001b[K');
-    for (const target of result.focusOutsideRoot) warn(io, errColors, `--focus ${target} is outside ${root}`);
-    if (result.files.length === 0) warn(io, errColors, `no files included from ${root} (check your ignore/include rules)`);
-    if (opts.focus.length && !result.files.some((f) => f.focused)) {
-      warn(io, errColors, `no files matched --focus ${opts.focus.join(', ')}`);
-    }
-
-    const diffRef = opts.diff === true ? (changedRef ?? 'HEAD') : opts.diff || undefined;
-    const renderOptions = {
-      projectName,
-      tree: opts.tree,
-      instructions: await readInstructions(opts.instructions, io.cwd),
-      focus: changedRef ? [...opts.focus, `changed vs ${changedRef}`] : opts.focus,
-      version: VERSION,
-      diff: diffRef ? { ref: diffRef, text: maybeRedact(await diffText(root, diffRef), opts.redact) } : undefined,
-      dependencies: opts.deps ? dependencyGraph(result) : undefined,
-    };
-
-    let document: string | undefined;
-    let budget: BudgetReport | undefined;
-    const splitting = !!(outputPath && opts.splitTokens);
-    if (opts.maxTokens) {
-      budget = await fitToBudget(result, {
-        maxTokens: opts.maxTokens,
-        render: (r) => render(opts.format, r, renderOptions),
-        comments: opts.comments,
+      const showProgress = !opts.quiet && !!io.stderr.isTTY;
+      const packOptions: PackOptions = {
+        mode: opts.full ? 'full' : 'skeleton',
+        focus,
+        // Relative --focus paths name files inside a remote repository, not the local cwd.
+        cwd: opts.remote ? root : io.cwd,
         placeholder: opts.placeholder,
-        fallback: packOptions.fallback,
+        comments: opts.comments,
         redact: opts.redact,
-      });
-      result = budget.result;
-      document = budget.document;
-      if (!budget.fits) {
-        const why = budget.focusTokens > opts.maxTokens ? ' (focused files alone exceed it)' : '';
-        warn(io, errColors, `output is ${formatNumber(budget.tokens)} tokens, over the ${formatNumber(opts.maxTokens)} budget${why}`);
-      }
-    } else if (!splitting) {
-      document = render(opts.format, result, renderOptions);
-    }
+        fallback: {
+          ...(opts.fallbackLines !== undefined ? { maxLines: opts.fallbackLines } : {}),
+          ...(opts.fallbackChars !== undefined ? { maxChars: opts.fallbackChars } : {}),
+        },
+        gitignore: opts.gitignore,
+        packignore: opts.packignore,
+        defaultIgnores: opts.defaultIgnores,
+        ignore,
+        include: opts.include,
+        maxFileSize: opts.maxFileSize,
+        followSymlinks: opts.followSymlinks,
+        onProgress: showProgress
+          ? (done, total) => {
+              if (done === total || done % 25 === 0) io.stderr.write(`\r${errColors.dim(`Packing ${done}/${total} files…`)}`);
+            }
+          : undefined,
+      };
 
-    const destinations: string[] = [];
-    const display = (p: string) => {
-      const shown = toPosix(relative(io.cwd, p));
-      return shown && !shown.startsWith('..') ? shown : p;
+      let result = await pack(root, packOptions);
+      if (showProgress) io.stderr.write('\r\u001b[K');
+      for (const target of result.focusOutsideRoot) warn(io, errColors, `--focus ${target} is outside ${root}`);
+      if (result.files.length === 0) warn(io, errColors, `no files included from ${root} (check your ignore/include rules)`);
+      if (opts.focus.length && !result.files.some((f) => f.focused)) {
+        warn(io, errColors, `no files matched --focus ${opts.focus.join(', ')}`);
+      }
+
+      const diffRef = opts.diff === true ? (changedRef ?? 'HEAD') : opts.diff || undefined;
+      const renderOptions = {
+        projectName,
+        tree: opts.tree,
+        instructions: await readInstructions(opts.instructions, io.cwd),
+        focus: changedRef ? [...opts.focus, `changed vs ${changedRef}`] : opts.focus,
+        version: VERSION,
+        diff: diffRef ? { ref: diffRef, text: maybeRedact(await diffText(root, diffRef), opts.redact) } : undefined,
+        dependencies: opts.deps ? dependencyGraph(result) : undefined,
+      };
+
+      let document: string | undefined;
+      let budget: BudgetReport | undefined;
+      const splitting = !!(outputPath && opts.splitTokens);
+      if (opts.maxTokens) {
+        budget = await fitToBudget(result, {
+          maxTokens: opts.maxTokens,
+          render: (r) => render(opts.format, r, renderOptions),
+          comments: opts.comments,
+          placeholder: opts.placeholder,
+          fallback: packOptions.fallback,
+          redact: opts.redact,
+        });
+        result = budget.result;
+        document = budget.document;
+        if (!budget.fits) {
+          const why = budget.focusTokens > opts.maxTokens ? ' (focused files alone exceed it)' : '';
+          warn(io, errColors, `output is ${formatNumber(budget.tokens)} tokens, over the ${formatNumber(opts.maxTokens)} budget${why}`);
+        }
+      } else if (!splitting) {
+        document = render(opts.format, result, renderOptions);
+      }
+
+      const destinations: string[] = [];
+      const display = (p: string) => {
+        const shown = toPosix(relative(io.cwd, p));
+        return shown && !shown.startsWith('..') ? shown : p;
+      };
+      let parts: SplitReport | undefined;
+      const write = !opts.dryRun;
+      if (outputPath && write) await mkdir(dirname(outputPath), { recursive: true });
+      if (outputPath && opts.splitTokens) {
+        parts = splitPack(result, {
+          maxTokens: opts.splitTokens!,
+          render: (r, part) => render(opts.format, r, { ...renderOptions, part }),
+        });
+        if (write) for (const part of parts.parts) await writeFile(partPath(outputPath, part.index), part.document);
+        const first = display(partPath(outputPath, 1));
+        if (write) destinations.push(`Wrote ${parts.parts.length} part${parts.parts.length === 1 ? '' : 's'} (${first}${parts.parts.length > 1 ? ' …' : ''})`);
+        for (const path of parts.oversized) warn(io, errColors, `${path} alone exceeds --split-tokens ${formatNumber(opts.splitTokens!)}`);
+        document = parts.parts.map((p) => p.document).join('\n');
+      } else if (outputPath) {
+        document ??= render(opts.format, result, renderOptions);
+        if (write) {
+          await writeFile(outputPath, document);
+          destinations.push(`Wrote ${display(outputPath)}`);
+        }
+      } else {
+        document ??= render(opts.format, result, renderOptions);
+        if (write) io.stdout.write(document);
+      }
+      document ??= render(opts.format, result, renderOptions);
+      if (opts.clipboard && write) {
+        await copyToClipboard(document);
+        destinations.push('copied to clipboard');
+      }
+
+      let lastTokens = 0;
+      let savedRatio = 0;
+      if (!opts.quiet || opts.statsJson || opts.watch) {
+        const stats = computeStats(result, document, { models: opts.models.length ? opts.models : [...DEFAULT_MODELS] });
+        lastTokens = stats.tokens.cl100k_base.output;
+        savedRatio = stats.savedRatio;
+        if (opts.statsJson) {
+          const statsPath = resolve(io.cwd, opts.statsJson);
+          await mkdir(dirname(statsPath), { recursive: true });
+          await writeFile(statsPath, `${JSON.stringify(statsToJson(stats, { budget, parts: parts?.parts.map((p) => p.tokens) }), null, 2)}\n`);
+        }
+        if (!opts.quiet && initial) {
+          const label = !write ? 'Dry run: nothing written' : destinations.length ? destinations.join(', ') : 'Wrote to stdout';
+          summaryStream.write(
+            `${renderSummary(stats, { colors, top: opts.top, outputLabel: label, mode: result.mode, budget, parts: parts?.parts.map((p) => p.tokens) })}\n`,
+          );
+        }
+      }
+      return {
+        files: result.files.length,
+        tokens: lastTokens,
+        savedRatio,
+        destination: destinations.join(', ') || (write ? 'stdout' : 'dry run'),
+        outputs: [outputPath, opts.statsJson ? resolve(io.cwd, opts.statsJson) : undefined].filter((p): p is string => !!p),
+      };
     };
-    let parts: SplitReport | undefined;
-    const write = !opts.dryRun;
-    if (outputPath && write) await mkdir(dirname(outputPath), { recursive: true });
-    if (outputPath && opts.splitTokens) {
-      parts = splitPack(result, {
-        maxTokens: opts.splitTokens!,
-        render: (r, part) => render(opts.format, r, { ...renderOptions, part }),
-      });
-      if (write) for (const part of parts.parts) await writeFile(partPath(outputPath, part.index), part.document);
-      const first = display(partPath(outputPath, 1));
-      if (write) destinations.push(`Wrote ${parts.parts.length} part${parts.parts.length === 1 ? '' : 's'} (${first}${parts.parts.length > 1 ? ' …' : ''})`);
-      for (const path of parts.oversized) warn(io, errColors, `${path} alone exceeds --split-tokens ${formatNumber(opts.splitTokens!)}`);
-      document = parts.parts.map((p) => p.document).join('\n');
-    } else if (outputPath) {
-      document ??= render(opts.format, result, renderOptions);
-      if (write) {
-        await writeFile(outputPath, document);
-        destinations.push(`Wrote ${display(outputPath)}`);
-      }
-    } else {
-      document ??= render(opts.format, result, renderOptions);
-      if (write) io.stdout.write(document);
-    }
-    document ??= render(opts.format, result, renderOptions);
-    if (opts.clipboard && write) {
-      await copyToClipboard(document);
-      destinations.push('copied to clipboard');
-    }
 
-    if (!opts.quiet || opts.statsJson) {
-      const stats = computeStats(result, document, { models: opts.models.length ? opts.models : [...DEFAULT_MODELS] });
-      if (opts.statsJson) {
-        const statsPath = resolve(io.cwd, opts.statsJson);
-        await mkdir(dirname(statsPath), { recursive: true });
-        await writeFile(statsPath, `${JSON.stringify(statsToJson(stats, { budget, parts: parts?.parts.map((p) => p.tokens) }), null, 2)}\n`);
-      }
-      if (!opts.quiet) {
-        const label = !write ? 'Dry run: nothing written' : destinations.length ? destinations.join(', ') : 'Wrote to stdout';
-        summaryStream.write(
-          `${renderSummary(stats, { colors, top: opts.top, outputLabel: label, mode: result.mode, budget, parts: parts?.parts.map((p) => p.tokens) })}\n`,
-        );
+    if (opts.watch && (opts.stdout || opts.remote)) throw new Error('--watch writes a file; it cannot be combined with --stdout or --remote');
+    const first = await once(true);
+    if (opts.watch) {
+      const controller = new AbortController();
+      const stop = () => controller.abort();
+      const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const;
+      for (const s of signals) process.once(s, stop);
+      try {
+        await watchLoop({ root, outputs: first.outputs, rerun: () => once(false), io, colors: errColors, signal: controller.signal });
+      } finally {
+        for (const s of signals) process.off(s, stop);
       }
     }
     return 0;

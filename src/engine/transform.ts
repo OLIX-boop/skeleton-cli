@@ -1,5 +1,7 @@
 import { embeddedForPath, languageForPath, LANGUAGES, type EmbeddedSpec } from '../languages/index.js';
+import { createHash } from 'node:crypto';
 import type { CommentMode } from '../languages/types.js';
+import { LruCache } from '../util/lru.js';
 import { redactSecrets, type RedactionHit } from '../security/secrets.js';
 import { skeletonize } from './skeleton.js';
 
@@ -114,12 +116,39 @@ function crashFallback(content: string, language: FileLanguage, bodies: boolean,
   };
 }
 
+/**
+ * Results of recent transforms, keyed by a hash of the file type, options and content.
+ * Makes repeated packs (MCP calls, --watch, budget passes) skip unchanged files.
+ */
+const cache = new LruCache<string, TransformedFile>(20_000, 256 * 1024 * 1024, (f) => f.content.length * 2 + 256);
+
+function cacheKey(filePath: string, content: string, options: TransformOptions): string {
+  const kind = embeddedForPath(filePath)?.id ?? languageForPath(filePath)?.id ?? '';
+  return createHash('sha1')
+    .update(JSON.stringify([kind, options.mode, options.comments, options.placeholder, options.fallback, options.redact !== false]))
+    .update('\0')
+    .update(content)
+    .digest('base64');
+}
+
+/** Forget cached transforms (e.g. in tests). */
+export function clearTransformCache(): void {
+  cache.clear();
+}
+
 /** Produce the packaged content for a single file. */
 export async function transformFile(filePath: string, content: string, options: TransformOptions): Promise<TransformedFile> {
-  const result = await transformContent(filePath, content, options);
-  if (options.redact === false) return result;
-  const redacted = redactSecrets(result.content);
-  return redacted.hits.length ? { ...result, content: redacted.content, redactions: redacted.hits } : result;
+  const key = cacheKey(filePath, content, options);
+  const cached = cache.get(key);
+  if (cached) return cached;
+  let result = await transformContent(filePath, content, options);
+  if (options.redact !== false) {
+    const redacted = redactSecrets(result.content);
+    if (redacted.hits.length) result = { ...result, content: redacted.content, redactions: redacted.hits };
+  }
+  // A crash fallback may be transient (parser reset); don't pin it.
+  if (!(result.parseErrors && result.strippedBodies === 0 && result.strategy !== 'skeleton')) cache.set(key, result);
+  return result;
 }
 
 async function transformContent(filePath: string, content: string, options: TransformOptions): Promise<TransformedFile> {

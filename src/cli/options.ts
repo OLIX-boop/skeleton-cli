@@ -35,6 +35,7 @@ export interface PackCliOptions {
   top: number;
   quiet?: boolean;
   dryRun?: boolean;
+  watch?: boolean;
   statsJson?: string;
   color: boolean;
 }
