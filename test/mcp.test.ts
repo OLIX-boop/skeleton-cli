@@ -82,9 +82,13 @@ describe('MCP server', () => {
 
   it('refuses paths outside the allowed roots', async () => {
     const { server } = await setup();
-    const res = await tool(server, 'skeleton_file', { path: '/etc/passwd' });
+    const outside = await makeTree({ 'x.txt': 'x' });
+    cleanups.push(outside.cleanup);
+    const res = await tool(server, 'skeleton_file', { path: join(outside.root, 'x.txt') });
     expect(res.isError).toBe(true);
     expect(res.content[0]!.text).toContain('outside the allowed roots');
+    const missing = await tool(server, 'skeleton_file', { path: 'nope.ts' });
+    expect(missing.content[0]!.text).toContain('does not exist');
     const escape = await tool(server, 'pack_codebase', { path: '../..' });
     expect(escape.isError).toBe(true);
   });

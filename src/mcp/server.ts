@@ -119,7 +119,8 @@ export class AstpackMcpServer {
     this.roots = options.roots.map((r) => {
       const abs = resolve(r);
       try {
-        return realpathSync(abs);
+        // Native realpath matches fs.promises.realpath (it also expands Windows 8.3 names).
+        return realpathSync.native(abs);
       } catch {
         return abs;
       }
@@ -211,8 +212,9 @@ export class AstpackMcpServer {
     } catch {
       throw new ToolError(`${input} does not exist`);
     }
+    const fold = (p: string) => (process.platform === 'win32' ? p.toLowerCase() : p);
     const allowed = this.roots.some((root) => {
-      const rel = relative(root, real);
+      const rel = relative(fold(root), fold(real));
       return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel));
     });
     if (!allowed) throw new ToolError(`${input} is outside the allowed roots (${this.roots.join(', ')})`);
@@ -236,21 +238,19 @@ export class AstpackMcpServer {
     };
 
     const runPack = async (args: Record<string, unknown>) => {
+      // Validate every argument before touching the file system.
+      const mode = oneOf(args, 'mode', ['skeleton', 'full'] as const) ?? 'skeleton';
+      const comments = oneOf<CommentMode>(args, 'comments', ['all', 'docs', 'none']);
+      const focusArgs = strList(args, 'focus');
+      const include = strList(args, 'include');
+      const ignore = strList(args, 'ignore');
+      const changed = str(args, 'changed');
       const root = await this.resolvePath(str(args, 'path', true)!);
       const info = await stat(root).catch(() => undefined);
       if (!info?.isDirectory()) throw new ToolError(`${root} is not a directory`);
-      const focus = strList(args, 'focus').map((f) => (/[*?[\]{}]/.test(f) ? f : resolve(root, f)));
-      const changed = str(args, 'changed');
+      const focus = focusArgs.map((f) => (/[*?[\]{}]/.test(f) ? f : resolve(root, f)));
       if (changed) focus.push(...(await changedFiles(root, changed)));
-      const comments = oneOf<CommentMode>(args, 'comments', ['all', 'docs', 'none']);
-      const result = await pack(root, {
-        mode: oneOf(args, 'mode', ['skeleton', 'full'] as const) ?? 'skeleton',
-        focus,
-        cwd: root,
-        comments,
-        include: strList(args, 'include'),
-        ignore: strList(args, 'ignore'),
-      });
+      const result = await pack(root, { mode, focus, cwd: root, comments, include, ignore });
       return { root, result, comments };
     };
 
