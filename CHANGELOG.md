@@ -9,6 +9,8 @@ All notable changes to this project are documented here. The format follows
 
 - `--query <text>` (config `query`, MCP `query`): focus the files most relevant to a task description, ranked
   by BM25 over identifiers and paths; the summary lists the matches. `--query-limit` caps them (default 5).
+- Worker threads for transforms and token counts on projects with 200+ files (`ASTPACK_WORKERS` to tune or
+  disable): packing VS Code without a cache drops from ~135 s to ~55 s on 4 cores.
 - On-disk cache of transforms and token counts per project (`astpack cache`, `astpack cache clear`,
   `--no-cache`, `ASTPACK_CACHE_DIR`, `ASTPACK_NO_CACHE`): re-packing VS Code drops from ~130 s to ~11 s.
 - `--related [depth]` (config `related`, MCP `related`): also include in full the files within `depth` import

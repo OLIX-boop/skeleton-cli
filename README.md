@@ -455,7 +455,7 @@ This is a safety net, not a guarantee. Keep secrets out of your repository.
 | `-w, --watch` | Keep running and re-pack whenever a file changes (unchanged files are served from an in-memory cache). |
 | `--stats-json <file>` | Also write the summary statistics as JSON (tokens, costs, per-file sizes) — handy in CI. |
 | `--no-color` | Disable colours (also respects `NO_COLOR` / `FORCE_COLOR`). |
-| `--no-cache` | Don't read or write the [on-disk cache](#cache). |
+| `--no-cache` | Don't read or write the [on-disk cache](#parallelism-and-cache). |
 | `-v, --version` | Print the version. |
 
 | Command | Description |
@@ -634,13 +634,23 @@ walk ──► transform ──► render ──► (budget / split) ──► c
 5. **Count** — `cl100k_base` / `o200k_base` (tiktoken-identical, via `gpt-tokenizer`) on the final document,
    plus a raw baseline from each file's original content. Long documents are counted in chunks cut where no
    token can span the cut (a line break followed by a non-space character), so the sum is exact and each
-   chunk's count can be cached.
+   chunk's count can be cached (and counted on another thread).
 
-### Cache
+### Parallelism and cache
+
+Projects with 200 or more files are transformed and counted on worker threads, one per CPU core beyond
+the first (at most 6; `ASTPACK_WORKERS=n` overrides, `0` disables them). The output is identical either way.
+Packing the VS Code sources (11,453 files, 35M raw tokens) on a 4-core machine:
+
+| | Time |
+| --- | ---: |
+| One thread, no cache | 135 s |
+| Worker threads, no cache | 55 s |
+| Warm cache | 11 s |
+
 
 Transform results and token counts are cached on disk, one file per project, keyed by a hash of each
-file's content and the options, so a re-run only processes what changed. Packing the VS Code sources
-(11,453 files, 35M raw tokens) takes about 130 s cold and 11 s warm. Entries a run doesn't use are dropped
+file's content and the options, so a re-run only processes what changed. Entries a run doesn't use are dropped
 when it saves, projects not packed for 30 days are deleted, and a new astpack version starts afresh.
 
 - Location: `~/.cache/astpack` (Linux, or `$XDG_CACHE_HOME/astpack`), `~/Library/Caches/astpack` (macOS),

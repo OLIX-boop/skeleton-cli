@@ -13,7 +13,7 @@ import { OUTPUT_EXTENSIONS, render } from '../output/index.js';
 import { pack, type PackOptions } from '../pack.js';
 import { partPath, splitPack, type SplitReport } from '../split.js';
 import { redactSecrets } from '../security/secrets.js';
-import { computeStats, countClaudeTokens, DEFAULT_MODELS, findModel, MODELS, type PackStats } from '../tokens/index.js';
+import { computeStats, countClaudeTokens, prefetchStats, DEFAULT_MODELS, findModel, MODELS, type PackStats } from '../tokens/index.js';
 import { VERSION } from '../version.js';
 import { toPosix } from '../walker/rules.js';
 import { copyToClipboard } from './clipboard.js';
@@ -411,6 +411,7 @@ export async function packCommand(directory: string, command: Command, io: CliIO
           opts.claudeTokens && initial && !opts.quiet
             ? await countClaudeTokens(document, modelIds.map(findModel).filter((m): m is NonNullable<typeof m> => !!m))
             : undefined;
+        await prefetchStats(result, document);
         const stats = computeStats(result, document, { models: modelIds, exactTokens });
         lastTokens = stats.tokens.cl100k_base.output;
         savedRatio = stats.savedRatio;

@@ -8,7 +8,7 @@ import { changedFiles } from '../git.js';
 import type { CommentMode } from '../languages/types.js';
 import { render, type OutputFormat } from '../output/index.js';
 import { pack, readText } from '../pack.js';
-import { computeStats, DEFAULT_MODELS, TokenCounter } from '../tokens/index.js';
+import { computeStats, DEFAULT_MODELS, prefetchStats, TokenCounter } from '../tokens/index.js';
 import { VERSION } from '../version.js';
 
 /** MCP protocol revisions this server speaks (newest first). */
@@ -300,6 +300,7 @@ export class AstpackMcpServer {
           } else {
             document = render(format, result, renderOptions);
           }
+          await prefetchStats(result, document);
           const stats = computeStats(result, document, { models: [...DEFAULT_MODELS] });
           return {
             content: [{ type: 'text', text: document }],
@@ -341,6 +342,7 @@ export class AstpackMcpServer {
           } else {
             document = render('markdown', result, renderOptions);
           }
+          await prefetchStats(result, document);
           const stats = computeStats(result, document, { models: [...DEFAULT_MODELS] });
           const cl = stats.tokens.cl100k_base;
           const lines = [

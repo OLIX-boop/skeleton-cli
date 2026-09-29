@@ -64,6 +64,20 @@ export interface StatsOptions {
   exactTokens?: ReadonlyMap<string, number>;
 }
 
+/**
+ * Count everything `computeStats` will need on worker threads first, when a pool is
+ * enabled, so the synchronous pass is all cache hits.
+ */
+export async function prefetchStats(result: PackResult, output: string, counter = new TokenCounter()): Promise<void> {
+  const texts: string[] = [output];
+  for (const file of result.files) {
+    texts.push(file.content);
+    if (file.original !== file.content) texts.push(file.original);
+  }
+  await counter.prefetch(texts, ['cl100k_base']);
+  await counter.prefetch([output], ['o200k_base']);
+}
+
 /** Compute token, savings and cost analytics for a rendered pack. */
 export function computeStats(result: PackResult, output: string, options: StatsOptions = {}): PackStats {
   const counter = options.counter ?? new TokenCounter();

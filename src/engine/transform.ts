@@ -2,6 +2,7 @@ import { embeddedForPath, languageForPath, LANGUAGES, type EmbeddedSpec } from '
 import { createHash } from 'node:crypto';
 import type { CommentMode } from '../languages/types.js';
 import { cacheStore } from '../cache/store.js';
+import { activePool, WorkerFailure } from '../parallel/pool.js';
 import { LruCache } from '../util/lru.js';
 import { redactSecrets, type RedactionHit } from '../security/secrets.js';
 import { outline } from './outline.js';
@@ -181,6 +182,19 @@ export function clearTransformCache(): void {
   cache.clear();
 }
 
+/** Transform without consulting caches (what worker threads run). */
+export async function computeTransform(filePath: string, content: string, options: TransformOptions): Promise<TransformedFile> {
+  let result = await transformContent(filePath, content, options);
+  // Only the id and fence are part of the result (not the whole language spec), so results
+  // stay small and serializable.
+  if (result.language) result = { ...result, language: { id: result.language.id, fence: result.language.fence } };
+  if (options.redact !== false) {
+    const redacted = redactSecrets(result.content);
+    if (redacted.hits.length) result = { ...result, content: redacted.content, redactions: redacted.hits };
+  }
+  return result;
+}
+
 /** Produce the packaged content for a single file. */
 export async function transformFile(filePath: string, content: string, options: TransformOptions): Promise<TransformedFile> {
   const key = cacheKey(filePath, content, options);
@@ -198,13 +212,14 @@ export async function transformFile(filePath: string, content: string, options: 
     cache.set(key, restored);
     return restored;
   }
-  let result = await transformContent(filePath, content, options);
-  // Only the id and fence are part of the result (not the whole language spec), so results
-  // stay small and serializable.
-  if (result.language) result = { ...result, language: { id: result.language.id, fence: result.language.fence } };
-  if (options.redact !== false) {
-    const redacted = redactSecrets(result.content);
-    if (redacted.hits.length) result = { ...result, content: redacted.content, redactions: redacted.hits };
+  const pool = activePool();
+  let result: TransformedFile;
+  try {
+    result = pool ? await pool.run<TransformedFile>({ type: 'transform', path: filePath, content, options }) : await computeTransform(filePath, content, options);
+  } catch (error) {
+    // A worker that died (e.g. out of memory) shouldn't fail the pack: retry here.
+    if (!pool || !(error instanceof WorkerFailure)) throw error;
+    result = await computeTransform(filePath, content, options);
   }
   // A crash fallback may be transient (parser reset); don't pin it.
   if (!(result.parseErrors && result.strippedBodies === 0 && result.strategy !== 'skeleton')) {

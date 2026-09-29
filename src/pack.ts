@@ -5,6 +5,7 @@ import type { RedactionHit } from './security/secrets.js';
 import { embeddedForPath, languageForPath } from './languages/index.js';
 import { dependencyGraph, relatedFiles } from './deps.js';
 import { search, topHits, type SearchHit } from './search.js';
+import { enablePool } from './parallel/pool.js';
 import { mapLimit } from './util/pool.js';
 import { FocusMatcher, walk, type SkippedEntry, type WalkOptions } from './walker/index.js';
 
@@ -37,6 +38,11 @@ export interface PackOptions extends WalkOptions {
   cwd?: string;
   /** Maximum files processed concurrently. Default 32. */
   concurrency?: number;
+  /**
+   * Transform on worker threads when there are enough files to pay off (default true;
+   * `ASTPACK_WORKERS=0` also disables them).
+   */
+  workers?: boolean;
   /** Called after each file is processed (for progress reporting). */
   onProgress?: (done: number, total: number, path: string) => void;
 }
@@ -152,6 +158,7 @@ export async function pack(root: string, options: PackOptions = {}): Promise<Pac
     related = relatedFiles(dependencyGraph({ files: sources }), targets, options.related!);
   }
 
+  if (options.workers !== false) enablePool(walked.files.length);
   let done = 0;
   const indexed = walked.files.map((entry, i) => ({ entry, original: originals[i]! }));
   const files = await mapLimit(indexed, concurrency, async ({ entry, original }): Promise<PackedFile> => {

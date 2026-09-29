@@ -54,12 +54,19 @@ export function registerExtensions(mapping: Readonly<Record<string, LanguageId>>
   for (const [key, id] of Object.entries(mapping)) {
     const spec = LANGUAGES[id];
     if (!spec) throw new Error(`Unknown language "${id}" for ${key}`);
+    registered[key] = id;
     if (key.startsWith('.')) BY_EXTENSION.set(key.toLowerCase(), spec);
     else BY_NAME.set(key, spec);
   }
 }
 
 const BY_NAME = new Map<string, LanguageSpec>();
+const registered: Record<string, LanguageId> = {};
+
+/** Every mapping added with `registerExtensions` (e.g. to replay it in a worker thread). */
+export function registeredExtensions(): Readonly<Record<string, LanguageId>> {
+  return { ...registered };
+}
 
 /** Resolve the language for a file path by extension, or `undefined` if unsupported. */
 export function languageForPath(filePath: string): LanguageSpec | undefined {

@@ -60,6 +60,7 @@ export async function treeCommand(directory: string, command: Command, io: CliIO
   setCacheStore(cache);
   try {
     const result = await pack(root, { mode: opts.full ? 'full' : opts.outline ? 'outline' : 'skeleton' });
+    await counter.prefetch(result.files.flatMap((f) => (f.content === f.original ? [f.content] : [f.content, f.original])));
     const tree = node('.');
     for (const file of result.files) {
       const tokens = counter.count(file.content);
