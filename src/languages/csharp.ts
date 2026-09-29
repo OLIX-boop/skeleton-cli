@@ -45,4 +45,5 @@ export const csharp: LanguageSpec = {
   grammar: 'tree-sitter-c_sharp',
   extensions: ['.cs'],
   bodyReplacement,
+  candidates: [...MEMBERS, 'property_declaration', 'indexer_declaration', 'lambda_expression', 'anonymous_method_expression'],
 };

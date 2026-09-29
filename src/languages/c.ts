@@ -21,6 +21,7 @@ export const c: LanguageSpec = {
   grammar: 'tree-sitter-c',
   extensions: ['.c', '.h'],
   bodyReplacement,
+  candidates: ['function_definition', 'lambda_expression'],
 };
 
 export const cpp: LanguageSpec = {
@@ -29,4 +30,5 @@ export const cpp: LanguageSpec = {
   grammar: 'tree-sitter-cpp',
   extensions: ['.cpp', '.cc', '.cxx', '.c++', '.hpp', '.hh', '.hxx', '.h++', '.ipp', '.tpp', '.inl'],
   bodyReplacement,
+  candidates: ['function_definition', 'lambda_expression'],
 };

@@ -21,4 +21,5 @@ export const php: LanguageSpec = {
   grammar: 'tree-sitter-php',
   extensions: ['.php'],
   bodyReplacement,
+  candidates: [...WITH_BODY],
 };

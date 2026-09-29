@@ -111,6 +111,20 @@ describe('walk', () => {
     expect(paths(await walk(join(root, 'packages/app')))).toEqual(['index.ts']);
   });
 
+  it('still packs a directory the repository ignores when it is the scan root', async () => {
+    const root = await tree({
+      '.git/HEAD': 'x',
+      '.gitignore': 'vendor/\n',
+      'vendor/lib/.gitignore': 'tmp.js\n',
+      'vendor/lib/a.js': '',
+      'vendor/lib/tmp.js': '',
+      'src/b.ts': '',
+    });
+    expect(paths(await walk(join(root, 'vendor/lib')))).toEqual(['.gitignore', 'a.js']);
+    expect(paths(await walk(join(root, 'vendor')))).toEqual(['lib/.gitignore', 'lib/a.js']);
+    expect(paths(await walk(root))).toEqual(['.gitignore', 'src/b.ts']);
+  });
+
   it('honours .git/info/exclude', async () => {
     const root = await tree({ '.git/info/exclude': 'scratch.ts\n', 'scratch.ts': '', 'a.ts': '' });
     expect(paths(await walk(root))).toEqual(['a.ts']);

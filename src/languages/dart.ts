@@ -21,4 +21,5 @@ export const dart: LanguageSpec = {
   grammar: 'tree-sitter-dart',
   extensions: ['.dart'],
   bodyReplacement,
+  candidates: ['function_body'],
 };

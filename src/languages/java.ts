@@ -36,4 +36,5 @@ export const java: LanguageSpec = {
   grammar: 'tree-sitter-java',
   extensions: ['.java'],
   bodyReplacement,
+  candidates: ['method_declaration', 'constructor_declaration', 'compact_constructor_declaration', 'lambda_expression', 'static_initializer', 'block'],
 };

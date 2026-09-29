@@ -31,4 +31,5 @@ export const kotlin: LanguageSpec = {
   grammar: 'tree-sitter-kotlin',
   extensions: ['.kt', '.kts'],
   bodyReplacement,
+  candidates: ['function_declaration', 'getter', 'setter', 'anonymous_initializer', 'secondary_constructor'],
 };

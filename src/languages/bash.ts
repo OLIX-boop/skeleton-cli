@@ -18,4 +18,5 @@ export const bash: LanguageSpec = {
   grammar: 'tree-sitter-bash',
   extensions: ['.sh', '.bash'],
   bodyReplacement,
+  candidates: ['function_definition'],
 };

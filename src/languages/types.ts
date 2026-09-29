@@ -46,6 +46,11 @@ export interface LanguageSpec {
    * in whatever syntax keeps the output valid (a block comment, `...`, etc.).
    */
   bodyReplacement(node: Node, placeholder: string): BodyReplacement | null;
+  /**
+   * Node types `bodyReplacement` may act on. The walker only materializes nodes of these
+   * types, which keeps large files fast.
+   */
+  candidates: readonly string[];
   /** Language name used for Markdown code fences. */
   fence: string;
 }

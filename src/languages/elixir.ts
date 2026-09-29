@@ -24,4 +24,5 @@ export const elixir: LanguageSpec = {
   grammar: 'tree-sitter-elixir',
   extensions: ['.ex', '.exs'],
   bodyReplacement,
+  candidates: ['call'],
 };

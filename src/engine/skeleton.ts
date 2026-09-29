@@ -29,28 +29,55 @@ interface Edit {
 
 function collectEdits(source: string, root: Node, spec: LanguageSpec, placeholder: string): Edit[] {
   const edits: Edit[] = [];
-  const stack: Node[] = [root];
-  while (stack.length > 0) {
-    const node = stack.pop()!;
-    const replacement = spec.bodyReplacement(node, placeholder);
-    const skipId = replacement?.node.id;
-    if (replacement) {
-      const start = replacement.start ?? replacement.node.startIndex;
-      const end = replacement.end ?? replacement.node.endIndex;
-      // Already a placeholder (e.g. re-processing skeleton output): nothing to strip.
-      if (source.slice(start, end) !== replacement.text) {
-        edits.push({ start, end, text: replacement.text });
+  const candidates = candidateSet(spec);
+  const cursor = root.walk();
+  // Span of the most recent replacement: nodes inside it are not visited. A pre-order walk
+  // visits nodes in document order, so only the latest replacement can contain the cursor.
+  let skipStart = -1;
+  let skipEnd = -1;
+  try {
+    for (;;) {
+      let descend = true;
+      const start = cursor.startIndex;
+      const end = cursor.endIndex;
+      if (start >= skipStart && end <= skipEnd && end > start) {
+        descend = false;
+      } else if (candidates.has(cursor.nodeType)) {
+        const node = cursor.currentNode;
+        const replacement = spec.bodyReplacement(node, placeholder);
+        if (replacement) {
+          const editStart = replacement.start ?? replacement.node.startIndex;
+          const editEnd = replacement.end ?? replacement.node.endIndex;
+          // Already a placeholder (e.g. re-processing skeleton output): nothing to strip.
+          if (source.slice(editStart, editEnd) !== replacement.text) {
+            edits.push({ start: editStart, end: editEnd, text: replacement.text });
+          }
+          // Keep walking the rest of the node (e.g. default parameter values may contain
+          // closures), but never descend into the replaced span.
+          skipStart = replacement.node.startIndex;
+          skipEnd = replacement.node.endIndex;
+          if (replacement.node.id === node.id) descend = false;
+        }
+      }
+      if (descend && cursor.gotoFirstChild()) continue;
+      while (!cursor.gotoNextSibling()) {
+        if (!cursor.gotoParent()) return edits.sort((a, b) => a.start - b.start);
       }
     }
-    // Keep walking the rest of the node (e.g. default parameter values may contain
-    // closures), but never descend into a subtree that has been replaced.
-    const children = node.children;
-    for (let i = children.length - 1; i >= 0; i--) {
-      const child = children[i];
-      if (child && child.id !== skipId) stack.push(child);
-    }
+  } finally {
+    cursor.delete();
   }
-  return edits.sort((a, b) => a.start - b.start);
+}
+
+const candidateSets = new WeakMap<LanguageSpec, ReadonlySet<string>>();
+
+function candidateSet(spec: LanguageSpec): ReadonlySet<string> {
+  let set = candidateSets.get(spec);
+  if (!set) {
+    set = new Set(spec.candidates);
+    candidateSets.set(spec, set);
+  }
+  return set;
 }
 
 function applyEdits(source: string, edits: Edit[]): string {

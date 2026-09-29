@@ -21,4 +21,5 @@ export const scala: LanguageSpec = {
   grammar: 'tree-sitter-scala',
   extensions: ['.scala', '.sc'],
   bodyReplacement,
+  candidates: ['function_definition'],
 };

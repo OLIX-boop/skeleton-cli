@@ -53,4 +53,5 @@ export const python: LanguageSpec = {
   grammar: 'tree-sitter-python',
   extensions: ['.py', '.pyi', '.pyw'],
   bodyReplacement,
+  candidates: ['function_definition'],
 };

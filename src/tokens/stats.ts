@@ -59,23 +59,23 @@ export interface StatsOptions {
 export function computeStats(result: PackResult, output: string, options: StatsOptions = {}): PackStats {
   const counter = options.counter ?? new TokenCounter();
   try {
-    const encodings: EncodingName[] = ['cl100k_base', 'o200k_base'];
-    const tokens = {} as Record<EncodingName, EncodingTotals>;
     const files: FileTokens[] = [];
-
-    for (const encoding of encodings) {
-      const outputTokens = counter.count(output, encoding);
-      let delta = 0;
-      for (const file of result.files) {
-        const packed = counter.count(file.content, encoding);
-        const original = file.content === file.original ? packed : counter.count(file.original, encoding);
-        delta += original - packed;
-        if (encoding === 'cl100k_base') {
-          files.push({ path: file.path, tokens: packed, originalTokens: original, strategy: file.strategy, focused: file.focused });
-        }
-      }
-      tokens[encoding] = { output: outputTokens, baseline: outputTokens + delta };
+    let delta = 0;
+    for (const file of result.files) {
+      const packed = counter.count(file.content, 'cl100k_base');
+      const original = file.content === file.original ? packed : counter.count(file.original, 'cl100k_base');
+      delta += original - packed;
+      files.push({ path: file.path, tokens: packed, originalTokens: original, strategy: file.strategy, focused: file.focused });
     }
+    const clOutput = counter.count(output, 'cl100k_base');
+    const o2Output = counter.count(output, 'o200k_base');
+    const clBaseline = clOutput + delta;
+    // Per-file counts are only needed for one encoding; the o200k baseline is scaled from
+    // the cl100k ratio (both tokenizers compress source code very similarly).
+    const tokens: Record<EncodingName, EncodingTotals> = {
+      cl100k_base: { output: clOutput, baseline: clBaseline },
+      o200k_base: { output: o2Output, baseline: clOutput > 0 ? Math.round((o2Output * clBaseline) / clOutput) : o2Output },
+    };
 
     const models = (options.models ?? []).map(findModel).filter((m): m is ModelPricing => !!m);
     const costs = models.map((model) => {

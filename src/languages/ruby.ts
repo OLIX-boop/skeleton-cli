@@ -21,4 +21,5 @@ export const ruby: LanguageSpec = {
   grammar: 'tree-sitter-ruby',
   extensions: ['.rb', '.rake', '.gemspec', '.ru'],
   bodyReplacement,
+  candidates: ['method', 'singleton_method'],
 };

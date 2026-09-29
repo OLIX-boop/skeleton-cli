@@ -86,6 +86,35 @@ export class IgnoreRules {
     return ignored;
   }
 
+  /**
+   * Whether ancestor rules ignore the scan root itself (or one of the directories leading
+   * to it), e.g. packing `node_modules/pkg` inside a repo that ignores `node_modules/`.
+   */
+  ignoresRoot(): boolean {
+    const ancestors = this.sets.filter((set) => set.prefix);
+    if (!ancestors.length) return false;
+    // The longest prefix belongs to the highest ancestor; walk its directories top-down.
+    const full = ancestors.map((set) => set.prefix!.split('/')).reduce((a, b) => (b.length > a.length ? b : a));
+    for (let depth = 1; depth <= full.length; depth++) {
+      let ignored = false;
+      for (const set of ancestors) {
+        const own = set.prefix!.split('/');
+        const anchorDepth = full.length - own.length; // how far below the top this set lives
+        if (depth <= anchorDepth) continue; // directory is above this rule set
+        const result = set.ig.test(`${full.slice(anchorDepth, depth).join('/')}/`);
+        if (result.ignored) ignored = true;
+        else if (result.unignored) ignored = false;
+      }
+      if (ignored) return true;
+    }
+    return false;
+  }
+
+  /** A copy without the ancestor rule sets. */
+  withoutAncestors(): IgnoreRules {
+    return new IgnoreRules(this.sets.filter((s) => s.prefix === undefined));
+  }
+
   private push(set: RuleSet): IgnoreRules {
     return new IgnoreRules([...this.sets, set]);
   }

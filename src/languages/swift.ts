@@ -23,4 +23,5 @@ export const swift: LanguageSpec = {
   grammar: 'tree-sitter-swift',
   extensions: ['.swift'],
   bodyReplacement,
+  candidates: [...WITH_BODY, 'computed_property'],
 };

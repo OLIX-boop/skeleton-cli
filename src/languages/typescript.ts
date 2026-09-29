@@ -48,7 +48,10 @@ function bodyReplacement(node: Node, placeholder: string): BodyReplacement | nul
   return null;
 }
 
-const shared = { bodyReplacement } satisfies Pick<LanguageSpec, 'bodyReplacement'>;
+const shared = {
+  bodyReplacement,
+  candidates: [...FUNCTION_LIKE, 'class_static_block'],
+} satisfies Pick<LanguageSpec, 'bodyReplacement' | 'candidates'>;
 
 export const typescript: LanguageSpec = {
   ...shared,

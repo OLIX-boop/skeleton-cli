@@ -179,6 +179,9 @@ export async function run(argv: readonly string[], io: CliIO = { stdout: process
     for (const target of result.focusOutsideRoot) {
       io.stderr.write(errColors.yellow(`warning: --focus ${target} is outside ${root}\n`));
     }
+    if (result.files.length === 0) {
+      io.stderr.write(errColors.yellow(`warning: no files included from ${root} (check your ignore/include rules)\n`));
+    }
     if (opts.focus.length && !result.files.some((f) => f.focused)) {
       io.stderr.write(errColors.yellow(`warning: no files matched --focus ${opts.focus.join(', ')}\n`));
     }

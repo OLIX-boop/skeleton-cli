@@ -26,4 +26,5 @@ export const rust: LanguageSpec = {
   grammar: 'tree-sitter-rust',
   extensions: ['.rs'],
   bodyReplacement,
+  candidates: ['function_item', 'closure_expression'],
 };

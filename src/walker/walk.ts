@@ -88,6 +88,8 @@ export async function walk(root: string, options: WalkOptions = {}): Promise<Wal
         if (content !== undefined) rules = rules.withAncestor(prefix, content);
       }
     }
+    // The user explicitly asked for this directory: don't let the repo's rules hide all of it.
+    if (rules.ignoresRoot()) rules = rules.withoutAncestors();
     rules = await rules.withFile(join(absRoot, '.git', 'info'), '', 'exclude');
   }
   if (opts.ignore?.length) rules = rules.with('', opts.ignore);

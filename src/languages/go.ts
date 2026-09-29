@@ -22,4 +22,5 @@ export const go: LanguageSpec = {
   grammar: 'tree-sitter-go',
   extensions: ['.go'],
   bodyReplacement,
+  candidates: ['function_declaration', 'method_declaration', 'func_literal'],
 };
