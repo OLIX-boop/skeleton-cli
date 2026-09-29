@@ -15,6 +15,9 @@ export interface AstpackConfig {
   format?: 'markdown' | 'json' | 'xml';
   mode?: 'skeleton' | 'full' | 'outline';
   focus?: string[];
+  related?: number;
+  query?: string;
+  queryLimit?: number;
   clipboard?: boolean;
   ignore?: string[];
   include?: string[];
@@ -29,6 +32,7 @@ export interface AstpackConfig {
   maxTokens?: number | string;
   splitTokens?: number | string;
   tree?: boolean;
+  order?: 'path' | 'stable' | 'size';
   deps?: boolean;
   instructions?: string;
   followSymlinks?: boolean;
@@ -49,6 +53,9 @@ export const CONFIG_SCHEMA: Record<keyof AstpackConfig, { kind: Kind; descriptio
   format: { kind: ['markdown', 'json', 'xml'], description: 'Output format.' },
   mode: { kind: ['skeleton', 'full', 'outline'], description: 'Strip function bodies (skeleton), include raw source (full) or list declarations only (outline).' },
   focus: { kind: 'string[]', description: 'Files, directories or globs kept as full source.' },
+  query: { kind: 'string', description: 'Focus the files most relevant to this task description.' },
+  queryLimit: { kind: 'number', description: 'Maximum number of files the query focuses (default 5).' },
+  related: { kind: 'number', description: 'Also keep as full source the files within this many import hops of a focused file.' },
   clipboard: { kind: 'boolean', description: 'Copy the document to the clipboard.' },
   ignore: { kind: 'string[]', description: 'Extra gitignore-style exclude patterns (merged with --ignore).' },
   include: { kind: 'string[]', description: 'Only include files matching these patterns (merged with --include).' },
@@ -63,6 +70,7 @@ export const CONFIG_SCHEMA: Record<keyof AstpackConfig, { kind: Kind; descriptio
   maxTokens: { kind: 'number|string', description: 'Token budget for the document (e.g. 100000 or "100k").' },
   splitTokens: { kind: 'number|string', description: 'Split the output into parts of at most this many tokens.' },
   tree: { kind: 'boolean', description: 'Include the directory tree.' },
+  order: { kind: ['path', 'stable', 'size'], description: 'File order: path, stable (least recently changed first, for prompt caching) or size.' },
   deps: { kind: 'boolean', description: 'Include the internal import graph.' },
   instructions: { kind: 'string', description: 'Instructions placed at the top (prefix with @ to read a file).' },
   followSymlinks: { kind: 'boolean', description: 'Follow symbolic links.' },

@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import type { Command } from 'commander';
+import { openCache, setCacheStore } from '../cache/store.js';
 import { pack, type PackedFile } from '../pack.js';
 import { TokenCounter } from '../tokens/index.js';
 import { makeColors, shouldColor, type Colors } from './colors.js';
@@ -54,9 +55,12 @@ export async function treeCommand(directory: string, command: Command, io: CliIO
   const opts = command.opts<{ depth: number; min: number; full?: boolean; outline?: boolean; color: boolean }>();
   const c = makeColors(opts.color && shouldColor(io.stdout));
   const counter = new TokenCounter();
+  const root = resolve(io.cwd, directory);
+  const cache = openCache(root);
+  setCacheStore(cache);
   try {
-    const root = resolve(io.cwd, directory);
     const result = await pack(root, { mode: opts.full ? 'full' : opts.outline ? 'outline' : 'skeleton' });
+    await counter.prefetch(result.files.flatMap((f) => (f.content === f.original ? [f.content] : [f.content, f.original])));
     const tree = node('.');
     for (const file of result.files) {
       const tokens = counter.count(file.content);
@@ -86,6 +90,8 @@ export async function treeCommand(directory: string, command: Command, io: CliIO
     io.stderr.write(`${c.red('error:')} ${(error as Error).message}\n`);
     return 1;
   } finally {
+    cache?.save();
+    setCacheStore(undefined);
     counter.free();
   }
 }

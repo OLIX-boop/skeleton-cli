@@ -2,6 +2,7 @@ import { Command, InvalidArgumentError, Option } from 'commander';
 import { OUTPUT_FORMATS } from '../output/index.js';
 import { PRESETS, presetNames } from '../presets.js';
 import { MODELS } from '../tokens/index.js';
+import { FILE_ORDERS } from '../order.js';
 import { VERSION } from '../version.js';
 import { parsePositiveInt, parseSize, parseTokenCount } from './format.js';
 import { initCommand } from './init-command.js';
@@ -41,6 +42,13 @@ export function buildProgram(io: CliIO, setExit: (code: number) => void): Comman
     .option('--full', 'include raw source without AST transformation')
     .option('--outline', 'list only declarations and signatures (one line each) outside focused files')
     .option('--focus <path>', 'keep a file, directory or glob as full source; skeletonize the rest (repeatable)', collect)
+    .option(
+      '--related [depth]',
+      'also keep as full source the files a focused file imports or is imported by, up to depth hops (default 1)',
+      wrapParser(parsePositiveInt),
+    )
+    .option('--query <text>', 'describe the task in words; the most relevant files (by identifiers and paths) are focused')
+    .option('--query-limit <n>', 'maximum number of files --query focuses (default 5)', wrapParser(parsePositiveInt))
     .option('-c, --clipboard', 'copy the packed document to the clipboard')
     .option('-i, --ignore <patterns>', 'extra gitignore-style patterns to exclude (repeatable, comma-separated)', collectList)
     .option('--include <patterns>', 'only include files matching these patterns (repeatable, comma-separated)', collectList)
@@ -67,6 +75,11 @@ export function buildProgram(io: CliIO, setExit: (code: number) => void): Comman
       wrapParser(parseTokenCount),
     )
     .option('--no-tree', 'omit the directory tree')
+    .addOption(
+      new Option('--order <order>', 'file order: path, stable (least recently changed first, for prompt caching) or size')
+        .choices([...FILE_ORDERS])
+        .default('path'),
+    )
     .option('--deps', 'include the internal import graph (which file imports which)')
     .option('--instructions <text>', 'instructions placed at the top of the document (prefix with @ to read a file)')
     .option('--follow-symlinks', 'follow symbolic links')
@@ -96,6 +109,7 @@ export function buildProgram(io: CliIO, setExit: (code: number) => void): Comman
     .option('-w, --watch', 'keep running and re-pack whenever a file changes')
     .option('--stats-json <file>', 'also write the summary statistics as JSON (for CI)')
     .option('--no-color', 'disable coloured output')
+    .option('--no-cache', 'do not read or write the on-disk cache of transforms and token counts')
     .addHelpText(
       'after',
       `
@@ -129,6 +143,28 @@ Examples:
     .option('--no-color', 'disable coloured output')
     .action(async (directory: string, _opts, command: Command) => {
       setExit(await treeCommand(directory, command, io));
+    });
+
+  program
+    .command('cache')
+    .description('show the on-disk cache (location, files, size); `astpack cache clear` deletes it')
+    .argument('[action]', '"clear" to delete the cache')
+    .action(async (action: string | undefined) => {
+      const { cacheInfo, clearCache } = await import('../cache/store.js');
+      const { formatBytes } = await import('./format.js');
+      if (action === 'clear') {
+        const { files, bytes } = cacheInfo();
+        const dir = clearCache();
+        io.stdout.write(`Cleared ${files} cache file${files === 1 ? '' : 's'} (${formatBytes(bytes)}) from ${dir}\n`);
+        setExit(0);
+      } else if (action === undefined) {
+        const { dir, files, bytes } = cacheInfo();
+        io.stdout.write(`Cache: ${dir}\n${files} project${files === 1 ? '' : 's'}, ${formatBytes(bytes)}\n`);
+        setExit(0);
+      } else {
+        io.stderr.write(`error: unknown cache action "${action}" (expected "clear")\n`);
+        setExit(1);
+      }
     });
 
   program

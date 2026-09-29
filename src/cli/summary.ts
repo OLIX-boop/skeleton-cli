@@ -1,4 +1,5 @@
 import type { BudgetReport } from '../budget.js';
+import type { SearchHit } from '../search.js';
 import type { PackStats } from '../tokens/index.js';
 import type { Colors } from './colors.js';
 import { formatBytes, formatNumber, formatPercent, formatUsd } from './format.js';
@@ -13,6 +14,8 @@ export interface SummaryOptions {
   budget?: BudgetReport;
   /** Token counts of each part when the output was split. */
   parts?: number[];
+  /** Files focused by `--query`. */
+  queryHits?: SearchHit[];
 }
 
 const SKIP_LABELS: Record<string, string> = {
@@ -34,7 +37,7 @@ export function renderSummary(stats: PackStats, options: SummaryOptions): string
   const skippedDetail = Object.entries(stats.skipped)
     .map(([reason, n]) => `${n} ${SKIP_LABELS[reason] ?? reason}`)
     .join(', ');
-  const strategyDetail = ['skeleton', 'outline', 'focus', 'full', 'truncated', 'omitted']
+  const strategyDetail = ['skeleton', 'outline', 'focus', 'full', 'truncated', 'minified', 'omitted']
     .filter((k) => stats.byStrategy[k])
     .map((k) => `${stats.byStrategy[k]} ${k}`)
     .join(', ');
@@ -86,9 +89,18 @@ export function renderSummary(stats: PackStats, options: SummaryOptions): string
     }
   }
 
+  if (options.queryHits) {
+    if (options.queryHits.length) {
+      const rows = options.queryHits.map((h) => [h.path, c.dim(h.matched.join(', '))]);
+      out.push('', table(rows, ['left', 'left'], ['Query matches', 'Words']));
+    } else {
+      out.push('', c.yellow('⚠ No files matched --query.'));
+    }
+  }
+
   if (options.top > 0 && stats.files.length) {
     const top = stats.files.slice(0, options.top).map((f) => [
-      f.path + (f.focused ? c.magenta(' [focus]') : ''),
+      f.path + (f.related ? c.magenta(' [related]') : f.matched ? c.magenta(' [match]') : f.focused ? c.magenta(' [focus]') : ''),
       formatNumber(f.tokens),
       f.originalTokens > f.tokens ? c.green(formatPercent(1 - f.tokens / f.originalTokens)) : c.dim('-'),
     ]);

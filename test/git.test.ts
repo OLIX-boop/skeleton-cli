@@ -1,10 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { writeFile } from 'node:fs/promises';
+import { mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Writable } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
 import { run } from '../src/cli/program.js';
 import { changedFiles, cloneRemote, diffText, parseRemote } from '../src/git.js';
+import { lastChanged } from '../src/order.js';
 import { makeTree } from './fixtures.js';
 
 const cleanups: (() => Promise<void>)[] = [];
@@ -57,6 +58,57 @@ async function cli(args: string[], cwd: string) {
 }
 
 // Spawning git is slow on Windows runners; allow each test more time.
+describe.skipIf(!hasGit)('--order stable', { timeout: 30_000 }, () => {
+  it('lists least recently changed files first, uncommitted changes and the diff last', async () => {
+    const root = await repo();
+    // Commit times have one-second resolution: date the commits explicitly.
+    const at = (date: string, ...args: string[]) =>
+      execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], {
+        cwd: root,
+        env: { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date },
+      });
+    at('2030-01-01T00:00:00Z', 'commit', '-q', '--amend', '--no-edit', '--date=2030-01-01T00:00:00Z');
+    await writeFile(join(root, 'src/a.ts'), 'export function a() {\n  return 10;\n}\n');
+    g(root, 'add', '.');
+    at('2030-02-01T00:00:00Z', 'commit', '-qm', 'change a');
+    await writeFile(join(root, 'src/b.ts'), 'export function b() {\n  return 20;\n}\n');
+
+    const order = (out: string) => [...out.matchAll(/^### `(src\/\w\.ts)`/gm)].map((m) => m[1]);
+    const { stdout } = await cli(['--stdout', '-q', '--no-tree', '--order', 'stable', '--diff'], root);
+    expect(order(stdout)).toEqual(['src/c.ts', 'src/a.ts', 'src/b.ts']);
+    expect(stdout.indexOf('## Git diff')).toBeGreaterThan(stdout.indexOf('### `src/b.ts`'));
+    expect(order((await cli(['--stdout', '-q', '--no-tree'], root)).stdout)).toEqual(['src/a.ts', 'src/b.ts', 'src/c.ts']);
+  });
+
+  it('handles paths starting with @ and projects reached through a symlink', async () => {
+    const root = await repo();
+    await mkdir(join(root, '@scope'));
+    await writeFile(join(root, '@scope/pkg.ts'), 'export const p = 1;\n');
+    g(root, 'add', '.');
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', 'commit', '-qm', 'scope'], {
+      cwd: root,
+      env: { ...process.env, GIT_AUTHOR_DATE: '2040-01-01T00:00:00Z', GIT_COMMITTER_DATE: '2040-01-01T00:00:00Z' },
+    });
+    const times = await lastChanged(root);
+    expect(times.get('@scope/pkg.ts')).toBe(Date.parse('2040-01-01T00:00:00Z') / 1000);
+    expect(Number.isFinite(times.get('src/a.ts'))).toBe(true);
+    if (process.platform !== 'win32') {
+      const link = `${root}-link`;
+      await symlink(root, link);
+      cleanups.push(() => rm(link, { force: true }));
+      expect((await lastChanged(link)).get('@scope/pkg.ts')).toBe(times.get('@scope/pkg.ts'));
+    }
+  });
+
+  it('keeps path order outside a git repository', async () => {
+    const t = await makeTree({ 'b.ts': 'export const b = 1;\n', 'a.ts': 'export const a = 1;\n' });
+    cleanups.push(t.cleanup);
+    const { stdout, code } = await cli(['--stdout', '-q', '--no-tree', '--order', 'stable'], t.root);
+    expect(code).toBe(0);
+    expect(stdout.indexOf('`a.ts`')).toBeLessThan(stdout.indexOf('`b.ts`'));
+  });
+});
+
 describe.skipIf(!hasGit)('git integration', { timeout: 30_000 }, () => {
   it('lists uncommitted, staged and untracked changes vs HEAD', async () => {
     const root = await repo();

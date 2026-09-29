@@ -733,6 +733,367 @@ return M
 `,
     stripped: 4,
   },
+  zig: {
+    lang: 'zig',
+    src: `const std = @import("std");
+/// A point.
+pub const Point = struct {
+    x: i32,
+    y: i32,
+    pub fn add(self: Point, other: Point) Point {
+        return .{ .x = self.x + other.x, .y = self.y + other.y };
+    }
+};
+pub fn main() !void {
+    const p = Point{ .x = 1, .y = 2 };
+    std.debug.print("{}\\n", .{p});
+}
+test "add" {
+    try std.testing.expect(true);
+}
+const E = enum { a, b };
+const U = union(enum) { x: i32, y: void };
+pub fn generic(comptime T: type) type {
+    return struct {
+        value: T,
+        pub fn get(self: @This()) T {
+            return self.value;
+        }
+    };
+}
+comptime {
+    _ = 1;
+}
+test "x" {
+    _ = 2;
+}
+fn cb() void {
+    const f = struct {
+        fn inner() void {}
+    }.inner;
+    _ = f;
+}
+`,
+    out: `const std = @import("std");
+/// A point.
+pub const Point = struct {
+    x: i32,
+    y: i32,
+    pub fn add(self: Point, other: Point) Point {
+        // ...
+    }
+};
+pub fn main() !void {
+    // ...
+}
+test "add" {
+    // ...
+}
+const E = enum { a, b };
+const U = union(enum) { x: i32, y: void };
+pub fn generic(comptime T: type) type {
+    return struct {
+        value: T,
+        pub fn get(self: @This()) T {
+            // ...
+        }
+    };
+}
+comptime {
+    // ...
+}
+test "x" {
+    // ...
+}
+fn cb() void {
+    // ...
+}
+`,
+    stripped: 7,
+  },
+  solidity: {
+    lang: 'solidity',
+    src: `// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+import "./IERC20.sol";
+/// @title Token
+contract Token is IERC20 {
+    mapping(address => uint256) private balances;
+    event Moved(address indexed from, uint256 amount);
+    modifier onlyOwner() {
+        require(msg.sender == owner, "no");
+        _;
+    }
+    constructor(uint256 supply) {
+        balances[msg.sender] = supply;
+    }
+    function transfer(address to, uint256 amount) external override returns (bool) {
+        balances[msg.sender] -= amount;
+        return true;
+    }
+    function total() external view virtual returns (uint256);
+    receive() external payable {}
+    fallback() external { revert(); }
+}
+interface IFoo { function foo() external; }
+library L { function f(uint x) internal pure returns (uint) { return x; } }
+`,
+    out: `// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+import "./IERC20.sol";
+/// @title Token
+contract Token is IERC20 {
+    mapping(address => uint256) private balances;
+    event Moved(address indexed from, uint256 amount);
+    modifier onlyOwner() { /* ... */ }
+    constructor(uint256 supply) { /* ... */ }
+    function transfer(address to, uint256 amount) external override returns (bool) { /* ... */ }
+    function total() external view virtual returns (uint256);
+    receive() external payable {}
+    fallback() external { /* ... */ }
+}
+interface IFoo { function foo() external; }
+library L { function f(uint x) internal pure returns (uint) { /* ... */ } }
+`,
+    stripped: 5,
+  },
+  haskell: {
+    lang: 'haskell',
+    src: `module Data.Stack (Stack, push, pop) where
+
+import qualified Data.Map as M
+
+-- | A stack.
+data Stack a = Stack [a] deriving (Show)
+
+class Container f where
+  empty :: f a
+  insert :: a -> f a -> f a
+
+instance Container Stack where
+  empty = Stack []
+  insert x (Stack xs) = Stack (x : xs)
+
+-- | Push an element.
+push :: a -> Stack a -> Stack a
+push x (Stack xs) = Stack (x : xs)
+
+pop :: Stack a -> Maybe (a, Stack a)
+pop (Stack []) = Nothing
+pop (Stack (x : xs)) =
+  let rest = Stack xs
+   in Just (x, rest)
+
+main :: IO ()
+main = do
+  print (push 1 (Stack []))
+  putStrLn "done"
+`,
+    out: `module Data.Stack (Stack, push, pop) where
+
+import qualified Data.Map as M
+
+-- | A stack.
+data Stack a = Stack [a] deriving (Show)
+
+class Container f where
+  empty :: f a
+  insert :: a -> f a -> f a
+
+instance Container Stack where
+  empty = Stack []
+  insert x (Stack xs) = Stack (x : xs)
+
+-- | Push an element.
+push :: a -> Stack a -> Stack a
+push x (Stack xs) = Stack (x : xs)
+
+pop :: Stack a -> Maybe (a, Stack a)
+pop (Stack []) = Nothing
+pop (Stack (x : xs)) = undefined {- ... -}
+
+main :: IO ()
+main = undefined {- ... -}
+`,
+    stripped: 2,
+  },
+  ocaml: {
+    lang: 'ocaml',
+    src: `(** A stack module. *)
+module Stack = struct
+  type 'a t = 'a list
+
+  let empty = []
+
+  (** Push. *)
+  let push x s =
+    let y = x in
+    y :: s
+
+  let rec length = function
+    | [] -> 0
+    | _ :: t -> 1 + length t
+end
+
+module type S = sig
+  type t
+  val f : t -> int
+end
+
+let main () =
+  print_endline "hi";
+  ignore (Stack.push 1 Stack.empty)
+
+class point x_init = object
+  val mutable x = x_init
+  method get_x = x
+  method move d = x <- x + d
+end
+`,
+    out: `(** A stack module. *)
+module Stack = struct
+  type 'a t = 'a list
+
+  let empty = []
+
+  (** Push. *)
+  let push x s =
+    assert false (* ... *)
+
+  let rec length = assert false (* ... *)
+end
+
+module type S = sig
+  type t
+  val f : t -> int
+end
+
+let main () =
+  assert false (* ... *)
+
+class point x_init = object
+  val mutable x = x_init
+  method get_x = x
+  method move d = x <- x + d
+end
+`,
+    stripped: 3,
+  },
+  julia: {
+    lang: 'julia',
+    src: `module Geometry
+export Point, norm2
+using LinearAlgebra
+
+"""
+    Point(x, y)
+
+A 2D point.
+"""
+struct Point{T<:Real}
+    x::T
+    y::T
+end
+
+abstract type Shape end
+
+function norm2(p::Point)::Float64
+    s = p.x^2 + p.y^2
+    return sqrt(s)
+end
+
+area(r::Float64) = pi * r^2
+
+macro twice(ex)
+    quote
+        $(esc(ex)); $(esc(ex))
+    end
+end
+
+f = x -> begin
+    x + 1
+end
+end
+`,
+    out: `module Geometry
+export Point, norm2
+using LinearAlgebra
+
+"""
+    Point(x, y)
+
+A 2D point.
+"""
+struct Point{T<:Real}
+    x::T
+    y::T
+end
+
+abstract type Shape end
+
+function norm2(p::Point)::Float64 #= ... =# end
+
+area(r::Float64) = pi * r^2
+
+macro twice(ex) #= ... =# end
+
+f = x -> begin
+    x + 1
+end
+end
+`,
+    stripped: 2,
+  },
+  objc: {
+    lang: 'objc',
+    src: `#import <Foundation/Foundation.h>
+#import "Stack.h"
+
+/// A stack.
+@interface Stack : NSObject
+@property (nonatomic, strong) NSMutableArray *items;
+- (void)push:(id)item;
++ (instancetype)stack;
+@end
+
+@implementation Stack
+- (void)push:(id)item {
+    [self.items addObject:item];
+}
++ (instancetype)stack {
+    return [[self alloc] init];
+}
+@end
+
+static int helper(int x) {
+    return x * 2;
+}
+
+void (^block)(int) = ^(int n) {
+    NSLog(@"%d", n);
+};
+`,
+    out: `#import <Foundation/Foundation.h>
+#import "Stack.h"
+
+/// A stack.
+@interface Stack : NSObject
+@property (nonatomic, strong) NSMutableArray *items;
+- (void)push:(id)item;
++ (instancetype)stack;
+@end
+
+@implementation Stack
+- (void)push:(id)item { /* ... */ }
++ (instancetype)stack { /* ... */ }
+@end
+
+static int helper(int x) { /* ... */ }
+
+void (^block)(int) = ^(int n) { /* ... */ };
+`,
+    stripped: 4,
+  },
 };
 
 describe.each(Object.entries(cases))('%s', (_name, c) => {
@@ -767,6 +1128,14 @@ describe('languageForPath (all languages)', () => {
     ['mix.exs', 'elixir'],
     ['deploy.sh', 'bash'],
     ['init.lua', 'lua'],
+    ['main.zig', 'zig'],
+    ['Token.sol', 'solidity'],
+    ['Main.hs', 'haskell'],
+    ['stack.ml', 'ocaml'],
+    ['stack.mli', 'ocaml_interface'],
+    ['geometry.jl', 'julia'],
+    ['AppDelegate.m', 'objc'],
+    ['View.mm', 'objc'],
   ])('%s -> %s', (file, id) => {
     expect(languageForPath(file)?.id).toBe(id);
   });
@@ -947,12 +1316,38 @@ describe('C# preprocessor directives', () => {
 `);
   });
 
+  it('strips bodies in every branch of a chain, nested chains included', async () => {
+    const src = `class A
+#if NET8_0
+    : IA
+#elif NET6_0
+    : IB
+#else
+    : IC
+#endif
+{
+#if DEBUG
+    void Log() { Console.WriteLine("debug"); }
+#else
+    void Log() { }
+#endif
+    int F() { return 1; }
+}
+`;
+    const result = await skeletonize(src, 'csharp');
+    expect(result.hasErrors).toBe(false);
+    expect(result.code).toContain(`#if DEBUG\n    void Log() ${P}\n#else\n    void Log() ${P}\n#endif`);
+    expect(result.code).toContain(`#elif NET6_0\n    : IB\n#else\n    : IC`);
+    expect(result.code).toContain(`int F() ${P}`);
+    expect(result.strippedBodies).toBe(3);
+  });
+
   it('keeps line offsets when blanking inactive branches', async () => {
     const { blankPreprocessor } = await import('../src/languages/csharp.js');
     const src = '#if A\r\nint a;\r\n#elif B\r\nint b;\r\n#else\r\nint c;\r\n#endif\r\nint d;\r\n';
     const out = blankPreprocessor(src);
-    expect(out.length).toBe(src.length);
-    expect(out.split('\r\n').map((l) => l.trim())).toEqual(['', 'int a;', '', '', '', '', '', 'int d;', '']);
+    expect(out!.length).toBe(src.length);
+    expect(out!.split('\r\n').map((l) => l.trim())).toEqual(['', 'int a;', '', '', '', '', '', 'int d;', '']);
   });
 });
 
@@ -980,12 +1375,11 @@ describe('Swift conditional compilation', () => {
     #if canImport(Darwin) || canImport(Glibc)
     init() ${P}
     #else
-    init() {
-        value = Date().timeIntervalSince1970
-    }
+    init() ${P}
     #endif
 }
 `);
+    expect(result.strippedBodies).toBe(2);
   });
 });
 

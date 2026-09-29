@@ -156,4 +156,19 @@ describe('outline review fixes', () => {
     expect(await o('export enum Role { // roles\n  A,\n}\n', 'typescript')).toBe('export enum Role\n');
     expect(await o('type Foo = {\n  a: string;\n};\n', 'typescript')).toBe('type Foo\n');
   });
+
+  it('Zig: multi-line containers with fields and methods, one-line containers whole', async () => {
+    const src = 'const E = enum { a, b };\npub const P = struct {\n    x: i32,\n    pub fn get(self: P) i32 {\n        return self.x;\n    }\n};\ntest "t" {\n    _ = 1;\n}\n';
+    expect(await o(src, 'zig')).toBe('const E = enum { a, b }\npub const P\n  x: i32\n  pub fn get(self: P) i32\ntest "t"\n');
+  });
+
+  it('Haskell: signatures stand in for their equations', async () => {
+    const src = 'module M where\n\nclass C a where\n  f :: a -> Int\n\ng :: Int -> Int\ng x = x + 1\n\nh y = y\n';
+    expect(await o(src, 'haskell')).toBe('class C a\n  f :: a -> Int\ng :: Int -> Int\nh y\n');
+  });
+
+  it('Objective-C and Solidity: members of interfaces and contracts', async () => {
+    expect(await o('@interface A : NSObject\n- (void)run;\n@end\n', 'objc')).toBe('@interface A : NSObject\n  - (void)run\n');
+    expect(await o('contract C {\n    uint x;\n    function f() public {\n        x = 1;\n    }\n}\n', 'solidity')).toBe('contract C\n  uint x\n  function f() public\n');
+  });
 });

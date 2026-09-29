@@ -18,6 +18,8 @@ export interface JsonDocument {
     language: string | null;
     strategy: string;
     focused: boolean;
+    /** Focused only because it imports, or is imported by, a focus target. */
+    related?: boolean;
     size: number;
     strippedBodies: number;
     content: string;
@@ -45,6 +47,7 @@ export function toJsonDocument(...[result, options]: Parameters<Renderer>): Json
       language: f.language ?? null,
       strategy: f.strategy,
       focused: f.focused,
+      ...(f.related ? { related: true } : {}),
       size: f.size,
       strippedBodies: f.strippedBodies,
       content: f.content,

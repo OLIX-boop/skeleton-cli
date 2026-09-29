@@ -119,6 +119,29 @@ describe('dependencyGraph', () => {
     });
   });
 
+  it('resolves Zig, Solidity, Julia, Haskell and Objective-C imports', async () => {
+    const { graph } = await graphOf({
+      'zig/main.zig': 'const std = @import("std");\nconst util = @import("util.zig");\n',
+      'zig/util.zig': '',
+      'sol/Token.sol': 'import "./IERC20.sol";\nimport {Math} from "./lib/Math.sol";\n',
+      'sol/IERC20.sol': '',
+      'sol/lib/Math.sol': '',
+      'jl/Main.jl': 'include("geometry.jl")\n',
+      'jl/geometry.jl': '',
+      'hs/app/Main.hs': 'import qualified Data.Stack as S\nimport Data.List (sort)\n',
+      'hs/src/Data/Stack.hs': 'module Data.Stack where\n',
+      'objc/App.m': '#import "Stack.h"\n#import <Foundation/Foundation.h>\n',
+      'objc/Stack.h': '',
+    });
+    expect(graph).toMatchObject({
+      'zig/main.zig': ['zig/util.zig'],
+      'sol/Token.sol': ['sol/IERC20.sol', 'sol/lib/Math.sol'],
+      'jl/Main.jl': ['jl/geometry.jl'],
+      'hs/app/Main.hs': ['hs/src/Data/Stack.hs'],
+      'objc/App.m': ['objc/Stack.h'],
+    });
+  });
+
   it('ranks the most imported files and renders the graph', async () => {
     const { map, result } = await graphOf({
       'a.ts': "import './shared';\n",

@@ -1,5 +1,13 @@
 import { posix } from 'node:path';
-import type { PackedFile, PackResult } from './pack.js';
+/** What the graph needs to know about a file. */
+export interface SourceFile {
+  /** POSIX path relative to the root. */
+  path: string;
+  /** Language id (e.g. `typescript`), if recognised. */
+  language?: string;
+  /** Source text. */
+  original: string;
+}
 
 /** Internal dependency graph: file → files it imports (POSIX paths relative to the root). */
 export type DependencyGraph = Map<string, string[]>;
@@ -18,7 +26,7 @@ class FileIndex {
   /** Go modules in the pack: module path → directory of its go.mod. */
   readonly goModules: { path: string; dir: string }[] = [];
 
-  constructor(files: readonly PackedFile[]) {
+  constructor(files: readonly SourceFile[]) {
     this.paths = new Set(files.map((f) => f.path));
     for (const f of files) {
       const dir = posix.dirname(f.path);
@@ -170,6 +178,44 @@ const cInclude: Resolver = {
   },
 };
 
+/** A path relative to the importing file (`./x.sol`, `util.zig`), else a unique suffix match. */
+function relativeOrUnique(spec: string, from: string, files: FileIndex): string | undefined {
+  const local = posix.normalize(posix.join(posix.dirname(from), spec));
+  if (files.has(local)) return local;
+  const matches = files.endingWith(spec.replace(/^(\.\.?\/)+/, ''));
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
+const objc: Resolver = {
+  extract: (s) => all(s, /^\s*#\s*(?:include|import)\s+"([^"]+)"/gm),
+  resolve: relativeOrUnique,
+};
+
+const zig: Resolver = {
+  // `@import("std")` names a package; only file imports are internal.
+  extract: (s) => all(s, /@import\s*\(\s*"([^"]+\.zig)"\s*\)/g),
+  resolve: relativeOrUnique,
+};
+
+const solidity: Resolver = {
+  extract: (s) => all(s, /^\s*import\s+(?:[^'";]*\bfrom\s+)?["']([^"']+)["']/gm),
+  resolve: relativeOrUnique,
+};
+
+const julia: Resolver = {
+  extract: (s) => all(s, /\binclude\s*\(\s*"([^"]+)"\s*\)/g),
+  resolve: relativeOrUnique,
+};
+
+const haskell: Resolver = {
+  extract: (s) => all(s, /^import\s+(?:qualified\s+)?([A-Z][\w.]*)/gm),
+  resolve(spec, _from, files) {
+    // `Data.Stack` lives in `Data/Stack.hs`, under some source root (src/, lib/, app/…).
+    const matches = files.endingWith(`${spec.replace(/\./g, '/')}.hs`);
+    return matches.length === 1 ? matches[0] : undefined;
+  },
+};
+
 const ruby: Resolver = {
   extract: (s) => all(s, /\brequire_relative\s*\(?\s*['"]([^'"]+)['"]/g),
   resolve(spec, from, files) {
@@ -218,10 +264,15 @@ const RESOLVERS: Record<string, Resolver> = {
   ruby,
   php,
   lua,
+  objc,
+  zig,
+  solidity,
+  julia,
+  haskell,
 };
 
 /** Build the internal import graph of a pack (edges to files outside the pack are dropped). */
-export function dependencyGraph(result: PackResult): DependencyGraph {
+export function dependencyGraph(result: { files: readonly SourceFile[] }): DependencyGraph {
   const index = new FileIndex(result.files);
   const graph: DependencyGraph = new Map();
   for (const file of result.files) {
@@ -250,10 +301,41 @@ export function mostImported(graph: DependencyGraph, limit = 10): { path: string
 }
 
 /** Render the graph as compact text: one `file -> dep, dep` line per importing file. */
-export function renderGraph(graph: DependencyGraph, files: readonly PackedFile[]): string {
+export function renderGraph(graph: DependencyGraph, files: readonly { path: string }[]): string {
   const order = new Map(files.map((f, i) => [f.path, i]));
   return [...graph]
     .sort(([a], [b]) => (order.get(a) ?? 0) - (order.get(b) ?? 0))
     .map(([from, deps]) => `${from} -> ${deps.join(', ')}`)
     .join('\n');
+}
+
+/**
+ * Files within `depth` import hops of `seeds`, in either direction (what they import and
+ * what imports them). The seeds themselves are not included.
+ */
+export function relatedFiles(graph: DependencyGraph, seeds: Iterable<string>, depth: number): Set<string> {
+  const neighbours = new Map<string, string[]>();
+  const link = (a: string, b: string) => (neighbours.get(a) ?? neighbours.set(a, []).get(a)!).push(b);
+  for (const [from, deps] of graph) {
+    for (const to of deps) {
+      link(from, to);
+      link(to, from);
+    }
+  }
+  const seen = new Set(seeds);
+  const related = new Set<string>();
+  let frontier = [...seen];
+  for (let hop = 0; hop < depth && frontier.length; hop++) {
+    const next: string[] = [];
+    for (const path of frontier) {
+      for (const n of neighbours.get(path) ?? []) {
+        if (seen.has(n)) continue;
+        seen.add(n);
+        related.add(n);
+        next.push(n);
+      }
+    }
+    frontier = next;
+  }
+  return related;
 }

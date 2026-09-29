@@ -3,16 +3,18 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, dirname, relative, resolve } from 'node:path';
 import type { Command } from 'commander';
 import { fitToBudget, type BudgetReport } from '../budget.js';
+import { openCache, setCacheStore } from '../cache/store.js';
 import { dependencyGraph } from '../deps.js';
 import { findConfig, loadConfig, type AstpackConfig } from '../config.js';
 import { PRESETS } from '../presets.js';
 import { registerExtensions, type LanguageId } from '../languages/index.js';
 import { changedFiles, cloneRemote, diffText, parseRemote, resolveRef } from '../git.js';
 import { OUTPUT_EXTENSIONS, render } from '../output/index.js';
+import { orderFiles } from '../order.js';
 import { pack, type PackOptions } from '../pack.js';
 import { partPath, splitPack, type SplitReport } from '../split.js';
 import { redactSecrets } from '../security/secrets.js';
-import { computeStats, countClaudeTokens, DEFAULT_MODELS, findModel, MODELS, type PackStats } from '../tokens/index.js';
+import { computeStats, countClaudeTokens, prefetchStats, DEFAULT_MODELS, findModel, MODELS, type PackStats } from '../tokens/index.js';
 import { VERSION } from '../version.js';
 import { toPosix } from '../walker/rules.js';
 import { copyToClipboard } from './clipboard.js';
@@ -203,6 +205,7 @@ export async function packCommand(directory: string, command: Command, io: CliIO
   try {
     let root = resolve(io.cwd, directory);
     let projectName = basename(root);
+    let cacheIdentity = root;
 
     // Config file: explicit --config, else astpack.config.json in the root or cwd.
     let configFocus: { dir: string; paths: string[] } | undefined;
@@ -248,6 +251,17 @@ export async function packCommand(directory: string, command: Command, io: CliIO
       cleanups.push(clone.cleanup);
       root = clone.dir;
       projectName = spec.name;
+      // Each clone lands in a new temporary directory; key its cache by what was cloned.
+      cacheIdentity = `remote:${spec.url}#${spec.branch ?? ''}`;
+    }
+
+    const cache = opts.cache === false ? undefined : openCache(cacheIdentity);
+    if (cache) {
+      setCacheStore(cache);
+      cleanups.push(async () => {
+        cache.save();
+        setCacheStore(undefined);
+      });
     }
 
     const requestedChanged = opts.changed === true ? 'HEAD' : opts.changed || undefined;
@@ -283,6 +297,9 @@ export async function packCommand(directory: string, command: Command, io: CliIO
       const packOptions: PackOptions = {
         mode: opts.full ? 'full' : opts.outline ? 'outline' : 'skeleton',
         focus,
+        related: opts.related === true ? 1 : opts.related || 0,
+        query: opts.query,
+        queryLimit: opts.queryLimit,
         // Relative --focus paths name files inside a remote repository, not the local cwd.
         cwd: opts.remote ? root : io.cwd,
         placeholder: opts.placeholder,
@@ -306,11 +323,12 @@ export async function packCommand(directory: string, command: Command, io: CliIO
           : undefined,
       };
 
-      let result = await pack(root, packOptions);
+      let result = await orderFiles(await pack(root, packOptions), opts.order ?? 'path');
       if (showProgress) io.stderr.write('\r\u001b[K');
       for (const target of result.focusOutsideRoot) warn(io, errColors, `--focus ${target} is outside ${root}`);
       if (result.files.length === 0) warn(io, errColors, `no files included from ${root} (check your ignore/include rules)`);
-      if (opts.focus.length && !result.files.some((f) => f.focused)) {
+      // Only the --focus targets themselves count, not query matches or their neighbours.
+      if (opts.focus.length && !result.files.some((f) => f.focused && !f.matched && !f.related)) {
         warn(io, errColors, `no files matched --focus ${opts.focus.join(', ')}`);
       }
 
@@ -319,10 +337,15 @@ export async function packCommand(directory: string, command: Command, io: CliIO
         projectName,
         tree: opts.tree,
         instructions: await readInstructions(opts.instructions, io.cwd),
-        focus: changedRef ? [...opts.focus, `changed vs ${changedRef}`] : opts.focus,
+        focus: [
+          ...opts.focus,
+          ...(changedRef ? [`changed vs ${changedRef}`] : []),
+          ...(opts.query ? [`files matching "${opts.query}"`] : []),
+        ],
         version: VERSION,
         diff: diffRef ? { ref: diffRef, text: maybeRedact(await diffText(root, diffRef), opts.redact) } : undefined,
-        dependencies: opts.deps ? dependencyGraph(result) : undefined,
+        diffLast: opts.order === 'stable',
+        dependencies: opts.deps ? (result.dependencies ?? dependencyGraph(result)) : undefined,
       };
 
       let document: string | undefined;
@@ -391,6 +414,7 @@ export async function packCommand(directory: string, command: Command, io: CliIO
           opts.claudeTokens && initial && !opts.quiet
             ? await countClaudeTokens(document, modelIds.map(findModel).filter((m): m is NonNullable<typeof m> => !!m))
             : undefined;
+        await prefetchStats(result, document);
         const stats = computeStats(result, document, { models: modelIds, exactTokens });
         lastTokens = stats.tokens.cl100k_base.output;
         savedRatio = stats.savedRatio;
@@ -402,7 +426,7 @@ export async function packCommand(directory: string, command: Command, io: CliIO
         if (!opts.quiet && initial) {
           const label = !write ? 'Dry run: nothing written' : destinations.length ? destinations.join(', ') : 'Wrote to stdout';
           summaryStream.write(
-            `${renderSummary(stats, { colors, top: opts.top, outputLabel: label, mode: result.mode, budget, parts: parts?.parts.map((p) => p.tokens) })}\n`,
+            `${renderSummary(stats, { colors, top: opts.top, outputLabel: label, mode: result.mode, budget, parts: parts?.parts.map((p) => p.tokens), queryHits: result.queryHits })}\n`,
           );
         }
       }
@@ -425,7 +449,12 @@ export async function packCommand(directory: string, command: Command, io: CliIO
       // `on`, not `once`: a terminal Ctrl+C can arrive twice (it also reaches the launcher).
       for (const s of signals) process.on(s, stop);
       try {
-        await watchLoop({ root, outputs: first.outputs, ignored: first.ignored, rerun: () => once(false), io, colors: errColors, signal: controller.signal });
+        const rerun = async () => {
+          const report = await once(false);
+          cache?.save();
+          return report;
+        };
+        await watchLoop({ root, outputs: first.outputs, ignored: first.ignored, rerun, io, colors: errColors, signal: controller.signal });
       } finally {
         for (const s of signals) process.off(s, stop);
       }

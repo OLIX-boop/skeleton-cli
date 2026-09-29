@@ -40,6 +40,20 @@
       },
       "description": "Files, directories or globs kept as full source."
     },
+    "query": {
+      "type": "string",
+      "description": "Focus the files most relevant to this task description."
+    },
+    "queryLimit": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Maximum number of files the query focuses (default 5)."
+    },
+    "related": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Also keep as full source the files within this many import hops of a focused file."
+    },
     "clipboard": {
       "type": "boolean",
       "description": "Copy the document to the clipboard."
@@ -118,6 +132,15 @@
       "type": "boolean",
       "description": "Include the directory tree."
     },
+    "order": {
+      "type": "string",
+      "enum": [
+        "path",
+        "stable",
+        "size"
+      ],
+      "description": "File order: path, stable (least recently changed first, for prompt caching) or size."
+    },
     "deps": {
       "type": "boolean",
       "description": "Include the internal import graph."
@@ -193,7 +216,14 @@
           "dart",
           "elixir",
           "bash",
-          "lua"
+          "lua",
+          "zig",
+          "haskell",
+          "ocaml",
+          "ocaml_interface",
+          "julia",
+          "solidity",
+          "objc"
         ]
       },
       "description": "Map extra extensions (\".es6\") or file names (\"Jenkinsfile\") to a language id, e.g. { \".es6\": \"javascript\" }."

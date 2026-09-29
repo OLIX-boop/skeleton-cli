@@ -89,6 +89,41 @@
     "sha256": "6d95607fc7d78964cfdf065ccb1ba76be5ed217c5ec0d0a3cace13c59fa1ae43",
     "bytes": 49488
   },
+  "tree-sitter-zig": {
+    "package": "@tree-sitter-grammars/tree-sitter-zig@1.1.2",
+    "sha256": "54b3b83dd9c62da5815f06132bc3fc914d9dcc780370b32416446a0b7969e8c6",
+    "bytes": 691726
+  },
+  "tree-sitter-haskell": {
+    "package": "tree-sitter-haskell@0.23.1",
+    "sha256": "37a6b07b1a838d02ffb4f4c2a06863637a8efe48432d60a275f50f1d08f1092c",
+    "bytes": 3805902
+  },
+  "tree-sitter-ocaml": {
+    "package": "tree-sitter-ocaml@0.24.2",
+    "sha256": "761a78a804931cfac1fa0c6238989b4b0e86cc70db461b1315d743de923f8246",
+    "bytes": 5553934
+  },
+  "tree-sitter-ocaml_interface": {
+    "package": "tree-sitter-ocaml@0.24.2",
+    "sha256": "c065e8da9052899592bd68c820ffda076e23394129de14c0bd2c46b189415ea9",
+    "bytes": 4918457
+  },
+  "tree-sitter-julia": {
+    "package": "tree-sitter-julia@0.23.1",
+    "sha256": "e0f52c36eadf0299e46fccd6715c760d35eaa3f09721bec38633da551ac9e781",
+    "bytes": 6223352
+  },
+  "tree-sitter-solidity": {
+    "package": "tree-sitter-solidity@1.2.13",
+    "sha256": "07420813d7668445152a5d5d2017e0fb84cb27342257e1add3cc7462eec7f811",
+    "bytes": 508582
+  },
+  "tree-sitter-objc": {
+    "package": "tree-sitter-objc@3.0.2",
+    "sha256": "155bf61fc94941fa9d07c86cd46895f14dfb2549fb7f646faeb83765af05c970",
+    "bytes": 5317155
+  },
   "tree-sitter-swift": {
     "package": "tree-sitter-swift@0.7.1",
     "built": "tree-sitter-cli@0.25.10",

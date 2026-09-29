@@ -27,17 +27,23 @@ export const renderXml: Renderer = (result, options) => {
   if (first && options.dependencies?.size) {
     out.push('<dependencies>', renderGraph(options.dependencies, whole.files), '</dependencies>');
   }
-  if (first && options.diff?.text.trim()) {
-    out.push(`<git_diff ref="${attr(options.diff.ref)}">`, ensureTrailingNewline(options.diff.text) + '</git_diff>');
-  }
+  const diff = () => {
+    if (first && options.diff?.text.trim()) {
+      out.push(`<git_diff ref="${attr(options.diff.ref)}">`, ensureTrailingNewline(options.diff.text) + '</git_diff>');
+    }
+  };
+  if (!options.diffLast) diff();
   out.push('<files>');
   for (const file of contentFiles(result)) {
     const attrs = [`path="${attr(file.path)}"`];
     if (file.language) attrs.push(`language="${file.language}"`);
     attrs.push(`strategy="${file.strategy}"`);
     if (file.focused) attrs.push('focus="true"');
+    if (file.related) attrs.push('related="true"');
     out.push(`<file ${attrs.join(' ')}>`, ensureTrailingNewline(file.content) + '</file>');
   }
-  out.push('</files>', '</project>');
+  out.push('</files>');
+  if (options.diffLast) diff();
+  out.push('</project>');
   return `${out.join('\n')}\n`;
 };

@@ -19,7 +19,14 @@ export type LanguageId =
   | 'dart'
   | 'elixir'
   | 'bash'
-  | 'lua';
+  | 'lua'
+  | 'zig'
+  | 'haskell'
+  | 'ocaml'
+  | 'ocaml_interface'
+  | 'julia'
+  | 'solidity'
+  | 'objc';
 
 /** A span of source text to be replaced in the skeleton output. */
 export interface BodyReplacement {
@@ -80,6 +87,12 @@ export interface LanguageSpec {
     /** Dynamic container check, for grammars where containers are generic calls (Elixir). */
     isContainer?(node: Node): boolean;
     /**
+     * The node holding a container's members, where the generic lookup (a `body` field or a
+     * `…body`/`…block` child) doesn't find it. Returning the container itself lists its
+     * named children as members under its first line.
+     */
+    body?(node: Node): Node | null | undefined;
+    /**
      * Custom line for a node: a string to list it (`''` to skip it silently), or `undefined`
      * to fall back to the generic rules. Used where node types alone are ambiguous (C).
      */
@@ -88,9 +101,11 @@ export interface LanguageSpec {
   /** Language name used for Markdown code fences. */
   fence: string;
   /**
-   * Rewrite the source before a second parse attempt, used only when the first parse has
+   * Rewrite the source before another parse attempt, used only when the first parse has
    * syntax errors. It must keep every character offset (same length, same line breaks) so
-   * edits computed on it apply to the original text. Used for C# preprocessor directives.
+   * edits computed on it apply to the original text. Used for conditional compilation in C#
+   * and Swift: `branch` n keeps the n-th branch of every `#if` chain (`undefined` when no
+   * chain has that many), so each branch's bodies can be stripped in its own pass.
    */
-  preprocess?(source: string): string;
+  preprocess?(source: string, branch?: number): string | undefined;
 }

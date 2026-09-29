@@ -84,7 +84,7 @@ export async function parseSource(spec: LanguageSpec, source: string): Promise<P
     if (!tree) throw new Error(`Failed to parse source as ${spec.id}`);
     if (tree.rootNode.hasError && spec.preprocess) {
       const rewritten = spec.preprocess(source);
-      if (rewritten !== source && rewritten.length === source.length) {
+      if (rewritten !== undefined && rewritten !== source && rewritten.length === source.length) {
         const retry = parser.parse(rewritten);
         if (retry && !retry.rootNode.hasError) {
           tree.delete();

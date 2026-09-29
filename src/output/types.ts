@@ -23,6 +23,11 @@ export interface RenderOptions {
   /** A unified diff to include before the files (e.g. from `--diff`). */
   diff?: { ref: string; text: string };
   /**
+   * Put the diff after the files instead, so that the start of the document stays the same
+   * when only the working tree changes (for LLM prompt caches; used with `--order stable`).
+   */
+  diffLast?: boolean;
+  /**
    * When the pack is split into several documents: this document's 1-based index, the total,
    * and every file of the pack (the tree, instructions and diff only appear in part 1).
    */

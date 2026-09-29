@@ -84,6 +84,58 @@ describe('cli', () => {
     expect((await cli(['--stdout', '--outline', '--full'], root)).code).toBe(1);
   });
 
+  it('supports --related, with or without a depth', async () => {
+    const t = await makeTree({
+      'a.ts': "import { b } from './b';\nexport function a() {\n  return b();\n}\n",
+      'b.ts': "import { c } from './c';\nexport function b() {\n  return c();\n}\n",
+      'c.ts': 'export function c() {\n  return 1;\n}\n',
+    });
+    cleanups.push(t.cleanup);
+    const one = await cli(['--stdout', '--no-color', '--focus', 'a.ts', '--related'], t.root);
+    expect(one.stdout).toContain('return c();');
+    expect(one.stdout).not.toContain('return 1;');
+    expect(one.stderr).toContain('b.ts [related]');
+    const two = await cli(['--stdout', '-q', '--focus', 'a.ts', '--related', '2'], t.root);
+    expect(two.stdout).toContain('return 1;');
+  });
+
+  it('supports --query, listing the matches', async () => {
+    const root = await project();
+    const { stdout, stderr } = await cli(['--stdout', '--no-color', '--query', 'admin login'], root);
+    expect(stdout).toContain('return u === "admin";');
+    expect(stdout).toContain('files matching "admin login"');
+    expect(stderr).toMatch(/Query matches[\s\S]*src\/auth\/login\.ts/);
+    expect(stderr).toContain('login.ts [match]');
+    const none = await cli(['--stdout', '--no-color', '--query', 'zebra'], root);
+    expect(none.stderr).toContain('No files matched --query');
+  });
+
+  it('uses the on-disk cache unless disabled, and reports and clears it', async () => {
+    const root = await project();
+    const cacheDir = join(root, '.cache-dir');
+    const saved = { dir: process.env.ASTPACK_CACHE_DIR, off: process.env.ASTPACK_NO_CACHE };
+    process.env.ASTPACK_CACHE_DIR = cacheDir;
+    delete process.env.ASTPACK_NO_CACHE;
+    try {
+      await cli(['-q', '--dry-run', '--no-cache'], root);
+      expect((await cli(['cache'], root)).stdout).toContain('0 projects');
+      await cli(['-q', '--dry-run', '--ignore', '.cache-dir'], root);
+      expect((await cli(['cache'], root)).stdout).toContain('1 project,');
+      expect((await cli(['cache', 'clear'], root)).stdout).toContain('Cleared 1 cache file');
+      expect((await cli(['cache', 'nope'], root)).code).toBe(1);
+    } finally {
+      process.env.ASTPACK_CACHE_DIR = saved.dir;
+      if (saved.dir === undefined) delete process.env.ASTPACK_CACHE_DIR;
+      if (saved.off !== undefined) process.env.ASTPACK_NO_CACHE = saved.off;
+    }
+  });
+
+  it('warns about a --focus that matched nothing, even when --query and --related add files', async () => {
+    const root = await project();
+    const { stderr } = await cli(['--stdout', '--no-color', '--focus', 'src/typo.ts', '--query', 'admin login', '--related'], root);
+    expect(stderr).toContain('no files matched --focus src/typo.ts');
+  });
+
   it('supports --full', async () => {
     const root = await project();
     const { stdout } = await cli(['--stdout', '-q', '--full'], root);

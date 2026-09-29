@@ -1,6 +1,9 @@
-import { embeddedForPath, languageForPath, LANGUAGES, type EmbeddedSpec } from '../languages/index.js';
+import { embeddedForPath, languageForPath, LANGUAGES, registeredExtensions, type EmbeddedSpec } from '../languages/index.js';
 import { createHash } from 'node:crypto';
 import type { CommentMode } from '../languages/types.js';
+import { cacheStore } from '../cache/store.js';
+import { isNotebook, notebookToScript } from '../languages/notebook.js';
+import { activePool, WorkerFailure } from '../parallel/pool.js';
 import { LruCache } from '../util/lru.js';
 import { redactSecrets, type RedactionHit } from '../security/secrets.js';
 import { outline } from './outline.js';
@@ -19,6 +22,8 @@ export type Strategy =
   | 'outline'
   /** Unsupported language in skeleton mode, cut at the fallback limit. */
   | 'truncated'
+  /** Minified or packed code (very long lines), replaced by a one-line note. */
+  | 'minified'
   /** Dropped to fit a token budget; listed in the tree only. */
   | 'omitted';
 
@@ -160,7 +165,7 @@ function crashFallback(content: string, language: FileLanguage, bodies: boolean,
 const cache = new LruCache<string, TransformedFile>(20_000, 256 * 1024 * 1024, (f) => f.content.length * 2 + 256);
 
 function cacheKey(filePath: string, content: string, options: TransformOptions): string {
-  const kind = embeddedForPath(filePath)?.id ?? languageForPath(filePath)?.id ?? '';
+  const kind = isNotebook(filePath) ? 'notebook' : (embeddedForPath(filePath)?.id ?? languageForPath(filePath)?.id ?? '');
   return createHash('sha1')
     .update(JSON.stringify([kind, options.mode, options.comments, options.placeholder, options.fallback, options.redact !== false]))
     .update('\0')
@@ -168,27 +173,130 @@ function cacheKey(filePath: string, content: string, options: TransformOptions):
     .digest('base64');
 }
 
+type StoredTransform = Omit<TransformedFile, 'content'> & { content?: string; same?: boolean };
+
+/** Unchanged content (full source) is stored as a flag rather than a second copy. */
+function storable(result: TransformedFile, source: string): StoredTransform {
+  return result.content === source ? { ...result, content: undefined, same: true } : result;
+}
+
 /** Forget cached transforms (e.g. in tests). */
 export function clearTransformCache(): void {
   cache.clear();
 }
 
-/** Produce the packaged content for a single file. */
-export async function transformFile(filePath: string, content: string, options: TransformOptions): Promise<TransformedFile> {
-  const key = cacheKey(filePath, content, options);
-  const cached = cache.get(key);
-  if (cached) return cached;
-  let result = await transformContent(filePath, content, options);
+/** Transform without consulting caches (what worker threads run). */
+export async function computeTransform(filePath: string, content: string, options: TransformOptions): Promise<TransformedFile> {
+  let result: TransformedFile;
+  const notebook = isNotebook(filePath) ? notebookToScript(content) : undefined;
+  if (notebook) {
+    // Transform the notebook's code as a script in its kernel language (outputs dropped).
+    result = await transformContent(filePath + notebook.extension, notebook.text, options);
+    result = { ...result, language: { id: 'notebook', fence: notebook.fence } };
+  } else {
+    result = await transformContent(filePath, content, options);
+  }
+  // Only the id and fence are part of the result (not the whole language spec), so results
+  // stay small and serializable.
+  if (result.language) result = { ...result, language: { id: result.language.id, fence: result.language.fence } };
   if (options.redact !== false) {
     const redacted = redactSecrets(result.content);
     if (redacted.hits.length) result = { ...result, content: redacted.content, redactions: redacted.hits };
   }
-  // A crash fallback may be transient (parser reset); don't pin it.
-  if (!(result.parseErrors && result.strippedBodies === 0 && result.strategy !== 'skeleton')) cache.set(key, result);
   return result;
 }
 
+/** Produce the packaged content for a single file. */
+export async function transformFile(filePath: string, content: string, options: TransformOptions): Promise<TransformedFile> {
+  const key = cacheKey(filePath, content, options);
+  const store = cacheStore();
+  const cached = cache.get(key);
+  if (cached) {
+    // Keep the entry in the on-disk cache too, or saving would drop it.
+    if (store && store.get('transform', key) === undefined) store.set('transform', key, storable(cached, content));
+    return cached;
+  }
+  const stored = store?.get<StoredTransform>('transform', key);
+  if (stored) {
+    const { same, ...rest } = stored;
+    const restored = { ...rest, content: same ? content : stored.content! } as TransformedFile;
+    cache.set(key, restored);
+    return restored;
+  }
+  const pool = activePool();
+  let result: TransformedFile;
+  try {
+    result = pool
+      ? await pool.run<TransformedFile>({ type: 'transform', path: filePath, content, options, extensions: registeredExtensions() })
+      : await computeTransform(filePath, content, options);
+  } catch (error) {
+    // A worker that died (e.g. out of memory) shouldn't fail the pack: retry here.
+    if (!pool || !(error instanceof WorkerFailure)) throw error;
+    result = await computeTransform(filePath, content, options);
+  }
+  // A crash fallback may be transient (parser reset); don't pin it.
+  if (!(result.parseErrors && result.strippedBodies === 0 && result.strategy !== 'skeleton')) {
+    cache.set(key, result);
+    store?.set('transform', key, storable(result, content));
+  }
+  return result;
+}
+
+/**
+ * Minified bundles, source maps inlined as data and similar machine-written text: long
+ * enough to matter, with lines far longer than anyone writes by hand.
+ */
+export function isMinified(content: string): boolean {
+  if (content.length < 4096) return false;
+  let lines = 1;
+  let longest = 0;
+  let start = 0;
+  for (let i = content.indexOf('\n'); i !== -1; i = content.indexOf('\n', i + 1)) {
+    lines++;
+    longest = Math.max(longest, i - start);
+    start = i + 1;
+  }
+  longest = Math.max(longest, content.length - start);
+  return longest >= 2000 && content.length / lines > 300;
+}
+
+/**
+ * A comment near the top saying the file is generated: `// Code generated by protoc-gen-go.
+ * DO NOT EDIT.`, `@generated`, `# This file is automatically generated`, `/* autogenerated *\/`.
+ */
+const COMMENT = String.raw`^[ \t]*(?:\/\/+|#+|\/?\*+|--|<!--|;+|"""|''')[ \t!]*`;
+/** The comment starts by saying so: `AUTOGENERATED`, `Code generated by…`, `This file was generated…`. */
+const GENERATED_LEAD = new RegExp(`${COMMENT}(?:(?:this|the) (?:file|code|module) (?:is|was|has been) )?(?:automatically |auto-)?(?:auto-?generated|generated|code generated)\\b`, 'im');
+/** Or carries a conventional marker anywhere in it (case-sensitive, as tools write them). */
+const GENERATED_MARK = new RegExp(`${COMMENT}.*?(?:@generated\\b|\\bDO NOT EDIT\\b)`, 'm');
+
+const PROSE = /\.(md|mdx|markdown|txt|rst|adoc|asciidoc|tex|org|textile)$/i;
+
+export function isGenerated(content: string): boolean {
+  const head = content.slice(0, 600);
+  return GENERATED_LEAD.test(head) || GENERATED_MARK.test(head);
+}
+
 async function transformContent(filePath: string, content: string, options: TransformOptions): Promise<TransformedFile> {
+  // Prose puts whole paragraphs on one line; only code and data count as minified.
+  if (options.mode !== 'full' && !PROSE.test(filePath) && isMinified(content)) {
+    const lines = content.split('\n').length;
+    const language = embeddedForPath(filePath) ?? languageForPath(filePath);
+    return {
+      content: `[minified: ${lines} line${lines === 1 ? '' : 's'}, ${content.length} chars omitted]\n`,
+      strategy: 'minified',
+      language: language ? { id: language.id, fence: language.fence } : undefined,
+      strippedBodies: 0,
+      strippedComments: 0,
+      redactions: [],
+      parseErrors: false,
+    };
+  }
+  // Generated code (protobuf stubs, ORM clients…) is read through its API: outline it.
+  if (options.mode === 'skeleton' && isGenerated(content)) {
+    const result = await outlineContent(filePath, content);
+    if (result?.content.trim()) return result;
+  }
   if (options.mode === 'outline') {
     const result = await outlineContent(filePath, content);
     if (result?.content.trim()) return result;

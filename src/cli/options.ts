@@ -1,3 +1,4 @@
+import type { FileOrder } from '../order.js';
 import type { CommentMode } from '../languages/types.js';
 import type { OutputFormat } from '../output/index.js';
 
@@ -10,6 +11,9 @@ export interface PackCliOptions {
   full?: boolean;
   outline?: boolean;
   focus: string[];
+  related?: number | boolean;
+  query?: string;
+  queryLimit?: number;
   clipboard?: boolean;
   ignore: string[];
   include: string[];
@@ -24,6 +28,7 @@ export interface PackCliOptions {
   maxTokens?: number;
   splitTokens?: number;
   tree: boolean;
+  order?: FileOrder;
   deps?: boolean;
   instructions?: string;
   followSymlinks?: boolean;
@@ -42,4 +47,5 @@ export interface PackCliOptions {
   watch?: boolean;
   statsJson?: string;
   color: boolean;
+  cache?: boolean;
 }

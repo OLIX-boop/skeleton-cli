@@ -174,7 +174,7 @@ astpack summary
 
 ## Features
 
-- **Skeleton mode** — AST-accurate body stripping for **18 languages** plus Vue, Svelte and Astro single-file
+- **Skeleton mode** — AST-accurate body stripping for **25 languages** plus Vue, Svelte and Astro single-file
   components. The output stays syntactically valid and re-processing it is a no-op.
 - **Focus mode** — keep chosen files, directories or globs verbatim while the rest of the project is a skeleton.
 - **Git-aware** — `--changed main` focuses everything your branch touched; `--diff` embeds the diff itself;
@@ -192,6 +192,9 @@ astpack summary
 - **Three formats** — Markdown (default), LLM-style XML and JSON; `--clipboard` and `--stdout` for piping.
 - **Presets** — `--preset review|explain|refactor|debug` for common LLM tasks, with ready-made instructions.
 - **Token map** — `astpack tree` shows which directories the tokens go to; `--watch` keeps the output fresh.
+- **Find the right files** — `--query "invoice pdf export"` focuses the most relevant files; `--related`
+  adds their imports and importers.
+- **Fast re-runs** — an on-disk cache means only changed files are re-processed.
 - **MCP server** — `astpack mcp` exposes `pack_codebase`, `estimate_tokens` and `skeleton_file` to Claude and other agents.
 - **Zero config, zero compilation** — WASM grammars, no native build step; an optional `astpack.config.json`
   when you want defaults per project.
@@ -247,6 +250,26 @@ astpack --watch --focus src/checkout      # keep astpack-output.md up to date wh
 astpack --focus src/billing --focus src/api/invoices.ts
 astpack --focus "**/*.test.ts"
 astpack --focus "app/[id]/page.tsx"       # existing paths win over glob syntax
+```
+
+`--query <text>` finds the focus for you: describe the task in plain words and the most relevant files
+(up to `--query-limit`, default 5) are included in full. Files are ranked by keyword relevance (BM25) over
+identifiers and paths, with identifiers split into words (`renderInvoicePdf` → render, invoice, pdf) and
+related forms matched (`invoices`, `rendering`). Code outranks docs, and implementation outranks tests. The
+summary lists the matches and the words each one contains:
+
+```sh
+astpack --query "invoice pdf export" --related      # the matching files and their neighbours in full
+astpack --query "retry logic for failed webhooks" --max-tokens 60k
+```
+
+`--related [depth]` widens the focus along the import graph: the files a focused file imports, and the
+files that import it, are included in full too (one hop by default). They are marked `[related]` in the
+summary, and a token budget compresses them only after every other file:
+
+```sh
+astpack --focus src/billing/invoice.ts --related      # its imports and importers in full
+astpack --changed --related 2                         # changed files plus two hops of neighbours
 ```
 
 An outline looks like this:
@@ -364,6 +387,19 @@ unless you pass `--follow-symlinks` (cycle-safe).
 
 Output is deterministic (no timestamps), which keeps prompt caches warm across runs.
 
+### Prompt caching
+
+Anthropic's and OpenAI's prompt caches reuse the longest unchanged **prefix** of a prompt. With the
+default path order, editing `src/api/a.ts` changes everything after it. `--order stable` lists the least
+recently changed files first (by git history, with uncommitted changes last) and moves the `--diff` to the
+end, so a re-pack after an edit shares almost all of its prefix with the previous one:
+
+```sh
+astpack --order stable --changed --diff -c    # paste into a conversation that already has the last pack
+```
+
+`--order size` (smallest first) is also available. The directory tree stays in path order either way.
+
 ### Dependency graph
 
 ```sh
@@ -398,6 +434,9 @@ This is a safety net, not a guarantee. Keep secrets out of your repository.
 | `--full` | Include raw source without AST transformation. |
 | `--outline` | List only declarations and signatures (one line each) outside focused files. |
 | `--focus <path>` | Keep a file, directory or glob as full source (repeatable). |
+| `--query <text>` | Focus the files most relevant to a task description (keyword ranking over identifiers and paths). |
+| `--query-limit <n>` | Maximum number of files `--query` focuses (default 5). |
+| `--related [depth]` | Also keep in full the files a focused file imports or is imported by, up to `depth` hops (default 1). |
 | `-c, --clipboard` | Copy the document to the clipboard (pbcopy, PowerShell, wl-copy, xclip, xsel). |
 | `-i, --ignore <patterns>` | Extra gitignore-style excludes (repeatable, comma-separated). |
 | `--include <patterns>` | Only include matching files (repeatable, comma-separated). |
@@ -412,6 +451,7 @@ This is a safety net, not a guarantee. Keep secrets out of your repository.
 | `--max-tokens <n>` | Fit the document into a token budget, e.g. `100k`. |
 | `--split-tokens <n>` | Split into part files of at most n tokens, e.g. `32k`. |
 | `--no-tree` | Omit the directory tree. |
+| `--order <order>` | File order: `path` (default), `stable` (least recently changed first, [for prompt caching](#prompt-caching)) or `size`. |
 | `--deps` | Include the internal import graph (`file -> files it imports`). |
 | `--instructions <text>` | Instructions at the top of the document; `@file` reads a file. |
 | `--follow-symlinks` | Follow symbolic links. |
@@ -429,6 +469,7 @@ This is a safety net, not a guarantee. Keep secrets out of your repository.
 | `-w, --watch` | Keep running and re-pack whenever a file changes (unchanged files are served from an in-memory cache). |
 | `--stats-json <file>` | Also write the summary statistics as JSON (tokens, costs, per-file sizes) — handy in CI. |
 | `--no-color` | Disable colours (also respects `NO_COLOR` / `FORCE_COLOR`). |
+| `--no-cache` | Don't read or write the [on-disk cache](#parallelism-and-cache). |
 | `-v, --version` | Print the version. |
 
 | Command | Description |
@@ -436,6 +477,7 @@ This is a safety net, not a guarantee. Keep secrets out of your repository.
 | `astpack init [directory] [--force]` | Create `astpack.config.json` and a commented `.packignore`. |
 | `astpack mcp [roots...]` | Run the MCP server over stdio (see [MCP server](#mcp-server)). |
 | `astpack tree [directory] [--depth n] [--min pct] [--full\|--outline]` | Show where the tokens are: a directory tree with packed and raw token totals, largest first. |
+| `astpack cache [clear]` | Show the on-disk cache's location and size, or delete it. |
 
 Environment: `NO_COLOR` / `FORCE_COLOR` control colours; `ASTPACK_WASM_TIERUP=1` keeps V8's default
 WebAssembly tiering (see [How it works](#how-it-works)).
@@ -474,7 +516,7 @@ pack code themselves:
 
 | Tool | What it does |
 | --- | --- |
-| `pack_codebase` | The packed document for a directory: `focus`, `changed`, `mode` (`skeleton`/`full`/`outline`), `comments`, `include`, `ignore`, `format`, `maxTokens`, `deps`. |
+| `pack_codebase` | The packed document for a directory: `focus`, `changed`, `query` / `queryLimit`, `related`, `mode` (`skeleton`/`full`/`outline`), `comments`, `include`, `ignore`, `order`, `format`, `maxTokens`, `deps`. |
 | `estimate_tokens` | Packed vs raw token counts and the largest files, without the document, to pick focus and budgets. |
 | `skeleton_file` | One file's skeleton: a cheap way to read its API. |
 
@@ -537,7 +579,23 @@ Inputs: `path`, `args`, `format`, `output`, `version` (npm version, default `lat
 | Elixir | `.ex .exs` | `def`/`defp`/`defmacro` and ExUnit `test`/`setup` do-blocks | modules, attributes (`@doc`, `@spec`), `use`/`alias`, `describe` |
 | Bash | `.sh .bash` | function bodies → `{ : '...'; }` | top-level commands and variables |
 | Lua | `.lua` | `function` bodies (local, `M.f`, `M:f`, anonymous) → `--[[ ... ]]` | tables, locals, `require`s, module returns |
+| Zig | `.zig` | `fn` bodies, `test` and `comptime` blocks → a `// ...` block | structs, enums, unions, fields, constants; generic `fn … type` bodies (the returned struct) |
+| Solidity | `.sol` | functions, modifiers, constructors, `receive`/`fallback` | contracts, interfaces, libraries, state variables, events, errors, NatSpec |
+| Haskell | `.hs` | multi-line or long equations (guards and `where` included) → `= undefined` | type signatures, data types, classes, instances, imports, Haddock, one-liners |
+| OCaml | `.ml` / `.mli` | multi-line function, method and `let () =` bodies → `assert false` | modules, signatures, types, exceptions, `external`s, values; `.mli` kept whole |
+| Julia | `.jl` | `function … end` and `macro … end` bodies → `#= ... =#` | modules, structs, abstract types, one-line methods, docstrings |
+| Objective-C | `.m .mm` | methods, C functions, multi-line blocks | `@interface`/`@protocol`, properties, method declarations, imports |
 | Vue / Svelte / Astro | `.vue .svelte .astro` | functions inside `<script>` blocks and Astro frontmatter | templates, markup and styles |
+| Jupyter notebooks | `.ipynb` | outputs and metadata dropped; code cells skeletonized in the kernel's language | cells as a [percent-format](https://jupytext.readthedocs.io/en/latest/formats-scripts.html) script (`# %%`), markdown as comments, magics commented out |
+
+**Machine-written files** are recognised in skeleton and outline modes. Minified code and data (lines of
+thousands of characters, like `*.min.js` bundles or inlined fixtures) is replaced by a one-line
+`[minified: …]` note. Generated sources, whose first comment says so (`// Code generated … DO NOT EDIT.`,
+`@generated`, `# AUTOGENERATED`), are outlined: their API stays visible without the boilerplate. Focus a file,
+or use `--full`, to include it verbatim.
+
+Notebooks may be up to 8× `--max-file-size` on disk, since outputs usually make up most of their size. On
+the *Python Data Science Handbook* notebooks, 9.3M raw tokens pack into 186k.
 
 Every other text file is included verbatim (truncated past the fallback limits in skeleton mode) with a
 matching code-fence language.
@@ -604,7 +662,31 @@ walk ──► transform ──► render ──► (budget / split) ──► c
 4. **Budget / split** — optional passes that re-transform files at other compression levels, or partition
    them into parts, measuring the real document each time.
 5. **Count** — `cl100k_base` / `o200k_base` (tiktoken-identical, via `gpt-tokenizer`) on the final document,
-   plus a raw baseline from each file's original content.
+   plus a raw baseline from each file's original content. Long documents are counted in chunks cut where no
+   token can span the cut (a line break followed by a non-space character), so the sum is exact and each
+   chunk's count can be cached (and counted on another thread).
+
+### Parallelism and cache
+
+Projects with 200 or more files are transformed and counted on worker threads, one per CPU core beyond
+the first (at most 6; `ASTPACK_WORKERS=n` overrides, `0` disables them). The output is identical either way.
+Packing the VS Code sources (11,453 files, 35M raw tokens) on a 4-core machine:
+
+| | Time |
+| --- | ---: |
+| One thread, no cache | 135 s |
+| Worker threads, no cache | 55 s |
+| Warm cache | 11 s |
+
+
+Transform results and token counts are cached on disk, one file per project, keyed by a hash of each
+file's content and the options, so a re-run only processes what changed. Entries a run doesn't use are dropped
+when it saves, projects not packed for 30 days are deleted, and a new astpack version starts afresh.
+
+- Location: `~/.cache/astpack` (Linux, or `$XDG_CACHE_HOME/astpack`), `~/Library/Caches/astpack` (macOS),
+  `%LOCALAPPDATA%\astpack\Cache` (Windows), or `$ASTPACK_CACHE_DIR`.
+- `astpack cache` shows its location and size; `astpack cache clear` deletes it.
+- `--no-cache`, or `ASTPACK_NO_CACHE=1`, turns it off.
 
 The CLI runs WebAssembly with V8's baseline compiler only (`--liftoff-only`, applied by re-launching itself
 once). The grammars contain a few enormous functions; optimizing them costs more time than a CLI run gains
@@ -616,9 +698,11 @@ back and, on Node 24, over a gigabyte of memory. Set `ASTPACK_WASM_TIERUP=1` to 
   Syntax newer than a grammar (e.g. Kotlin 2.1's `$$"..."` strings) may be flagged as a parse error.
   Skeletons are still produced in that case (text outside recognised bodies is kept verbatim) and the summary
   lists the affected files.
-- **Conditional compilation.** In C# and Swift, a file that fails to parse is parsed again with the first
-  branch of each `#if` chain kept and the other branches hidden, as a compiler would see it. Bodies in the
-  hidden `#else`/`#elif` branches are then kept verbatim rather than stripped.
+- **Conditional compilation.** In C# and Swift, a file that fails to parse (typically because `#if`
+  branches split a declaration) is parsed once per branch: first with the first branch of every `#if` chain,
+  then the second, and so on, as a compiler would see each configuration. Bodies are stripped in every branch
+  that parses. Nested chains are only combined branch by branch (the `#else` of an outer chain with the
+  `#else` of an inner one), and a branch that doesn't parse on its own is kept verbatim.
 - **Claude token counts are estimates by default.** Anthropic's tokenizer is not public and `cl100k_base`
   undercounts it (typically by 15–20%, more on code). Pass `--claude-tokens` to get exact per-model counts
   from the API. OpenAI counts are exact for the listed encodings. Claude 3.5 Sonnet is retired and can only

@@ -11,6 +11,10 @@ export interface FileTokens {
   originalTokens: number;
   strategy: string;
   focused: boolean;
+  /** Focused only as a neighbour of a focus target in the import graph. */
+  related?: boolean;
+  /** Focused because it matched `--query`. */
+  matched?: boolean;
 }
 
 export interface EncodingTotals {
@@ -60,6 +64,20 @@ export interface StatsOptions {
   exactTokens?: ReadonlyMap<string, number>;
 }
 
+/**
+ * Count everything `computeStats` will need on worker threads first, when a pool is
+ * enabled, so the synchronous pass is all cache hits.
+ */
+export async function prefetchStats(result: PackResult, output: string, counter = new TokenCounter()): Promise<void> {
+  const texts: string[] = [output];
+  for (const file of result.files) {
+    texts.push(file.content);
+    if (file.original !== file.content) texts.push(file.original);
+  }
+  await counter.prefetch(texts, ['cl100k_base']);
+  await counter.prefetch([output], ['o200k_base']);
+}
+
 /** Compute token, savings and cost analytics for a rendered pack. */
 export function computeStats(result: PackResult, output: string, options: StatsOptions = {}): PackStats {
   const counter = options.counter ?? new TokenCounter();
@@ -70,7 +88,7 @@ export function computeStats(result: PackResult, output: string, options: StatsO
       const packed = counter.count(file.content, 'cl100k_base');
       const original = file.content === file.original ? packed : counter.count(file.original, 'cl100k_base');
       delta += original - packed;
-      files.push({ path: file.path, tokens: packed, originalTokens: original, strategy: file.strategy, focused: file.focused });
+      files.push({ path: file.path, tokens: packed, originalTokens: original, strategy: file.strategy, focused: file.focused, ...(file.related ? { related: true } : {}), ...(file.matched ? { matched: true } : {}) });
     }
     const clOutput = counter.count(output, 'cl100k_base');
     const o2Output = counter.count(output, 'o200k_base');

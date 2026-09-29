@@ -7,8 +7,9 @@ import { transformFile } from '../engine/transform.js';
 import { changedFiles } from '../git.js';
 import type { CommentMode } from '../languages/types.js';
 import { render, type OutputFormat } from '../output/index.js';
+import { FILE_ORDERS, orderFiles, type FileOrder } from '../order.js';
 import { pack, readText } from '../pack.js';
-import { computeStats, DEFAULT_MODELS, TokenCounter } from '../tokens/index.js';
+import { computeStats, DEFAULT_MODELS, prefetchStats, TokenCounter } from '../tokens/index.js';
 import { VERSION } from '../version.js';
 
 /** MCP protocol revisions this server speaks (newest first). */
@@ -231,6 +232,17 @@ export class AstpackMcpServer {
         description: 'Files, directories or globs (relative to `path`) to include as full source.',
       },
       changed: { type: 'string', description: 'Also focus files changed vs this git ref (e.g. "HEAD" or "main").' },
+      query: {
+        type: 'string',
+        description: 'Describe the task in words (e.g. "invoice pdf export"); the most relevant files are included in full.',
+      },
+      queryLimit: { type: 'number', description: 'Maximum number of files `query` includes in full (default 5).' },
+      order: {
+        type: 'string',
+        enum: ['path', 'stable', 'size'],
+        description: 'File order: path (default), stable (least recently changed first, keeps prompt-cache prefixes) or size.',
+      },
+      related: { type: 'number', description: 'Also include in full the files within this many import hops of a focused file (e.g. 1).' },
       mode: {
         type: 'string',
         enum: ['skeleton', 'full', 'outline'],
@@ -250,13 +262,18 @@ export class AstpackMcpServer {
       const include = strList(args, 'include');
       const ignore = strList(args, 'ignore');
       const changed = str(args, 'changed');
+      const query = str(args, 'query');
+      const queryLimit = num(args, 'queryLimit');
+      const order = oneOf<FileOrder>(args, 'order', FILE_ORDERS) ?? 'path';
+      const depth = num(args, 'related');
+      const related = depth === undefined ? undefined : Math.floor(depth);
       const root = await this.resolvePath(str(args, 'path', true)!);
       const info = await stat(root).catch(() => undefined);
       if (!info?.isDirectory()) throw new ToolError(`${root} is not a directory`);
       const focus = focusArgs.map((f) => (/[*?[\]{}]/.test(f) ? f : resolve(root, f)));
       if (changed) focus.push(...(await changedFiles(root, changed)));
-      const result = await pack(root, { mode, focus, cwd: root, comments, include, ignore });
-      return { root, result, comments };
+      const packed = await pack(root, { mode, focus, related, query, queryLimit: queryLimit && Math.floor(queryLimit), cwd: root, comments, include, ignore });
+      return { root, result: await orderFiles(packed, order), comments };
     };
 
     return [
@@ -282,7 +299,7 @@ export class AstpackMcpServer {
           const maxTokens = num(args, 'maxTokens');
           const deps = args.deps === true;
           const { root, result: packed, comments } = await runPack(args);
-          const renderOptions = { projectName: basename(root), dependencies: deps ? dependencyGraph(packed) : undefined };
+          const renderOptions = { projectName: basename(root), dependencies: deps ? (packed.dependencies ?? dependencyGraph(packed)) : undefined };
           let result = packed;
           let document: string;
           if (maxTokens) {
@@ -292,6 +309,7 @@ export class AstpackMcpServer {
           } else {
             document = render(format, result, renderOptions);
           }
+          await prefetchStats(result, document);
           const stats = computeStats(result, document, { models: [...DEFAULT_MODELS] });
           return {
             content: [{ type: 'text', text: document }],
@@ -333,6 +351,7 @@ export class AstpackMcpServer {
           } else {
             document = render('markdown', result, renderOptions);
           }
+          await prefetchStats(result, document);
           const stats = computeStats(result, document, { models: [...DEFAULT_MODELS] });
           const cl = stats.tokens.cl100k_base;
           const lines = [
