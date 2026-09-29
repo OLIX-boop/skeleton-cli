@@ -75,5 +75,8 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.71.0",
     "vitest": "^5.0.2"
+  },
+  "optionalDependencies": {
+    "@anthropic-ai/sdk": "^0.129.0"
   }
 }

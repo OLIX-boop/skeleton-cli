@@ -19,7 +19,8 @@ First release.
   `.packignore`/`.astpackignore`, `--ignore` and `--include`, with built-in excludes for dependencies,
   lockfiles, binaries, build output and likely secrets.
 - Markdown, XML and JSON output; `--stdout`, `--clipboard`, `--instructions`, `--no-tree`.
-- Token analytics for `cl100k_base` and `o200k_base`, savings versus raw source, and per-model input cost.
+- Token analytics for `cl100k_base` and `o200k_base`, savings versus raw source, and per-model input cost;
+  `--claude-tokens` for exact Claude counts via Anthropic's token-counting API.
 - `--outline` repo-map mode (also a budget step), `--comments all|docs|none`, `--max-tokens` budgets, `--split-tokens` part files, `--deps` import graph.
 - Git integration: `--changed`, `--diff`, `--remote`.
 - Presets (`--preset review|explain|refactor|debug`) with ready-made instructions.

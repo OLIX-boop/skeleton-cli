@@ -83,6 +83,7 @@ export function buildProgram(io: CliIO, setExit: (code: number) => void): Comman
       `models to price in the summary (comma-separated; available: ${MODELS.map((m) => m.id).join(', ')})`,
       collectList,
     )
+    .option('--claude-tokens', 'count Claude tokens exactly via the Anthropic API (sends the document; needs ANTHROPIC_API_KEY)')
     .option('--top <n>', 'number of largest files to list in the summary', wrapParser(parsePositiveInt), 5)
     .option('-q, --quiet', 'do not print the summary')
     .option('--dry-run', 'compute everything and print the summary without writing the document (or copying it)')

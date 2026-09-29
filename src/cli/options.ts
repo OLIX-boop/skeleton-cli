@@ -34,6 +34,7 @@ export interface PackCliOptions {
   config?: string | false;
   preset?: string;
   models: string[];
+  claudeTokens?: boolean;
   top: number;
   quiet?: boolean;
   dryRun?: boolean;

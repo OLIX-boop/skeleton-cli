@@ -80,7 +80,9 @@ export function renderSummary(stats: PackStats, options: SummaryOptions): string
     ]);
     out.push('', table(costRows, ['left', 'right', 'right', 'right'], ['Model', 'Input tokens', 'Cost', 'Raw cost']));
     if (stats.costs.some((x) => x.model.approximate)) {
-      out.push(c.dim('* Claude token counts are estimated with cl100k_base; Claude uses its own tokenizer.'));
+      out.push(
+        c.dim('* Estimated with cl100k_base; Claude tokenizes typically 15-20% higher (more on code). Use --claude-tokens for exact counts.'),
+      );
     }
   }
 

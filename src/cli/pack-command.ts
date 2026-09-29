@@ -11,7 +11,7 @@ import { OUTPUT_EXTENSIONS, render } from '../output/index.js';
 import { pack, type PackOptions } from '../pack.js';
 import { partPath, splitPack, type SplitReport } from '../split.js';
 import { redactSecrets } from '../security/secrets.js';
-import { computeStats, DEFAULT_MODELS, findModel, MODELS, type PackStats } from '../tokens/index.js';
+import { computeStats, countClaudeTokens, DEFAULT_MODELS, findModel, MODELS, type PackStats } from '../tokens/index.js';
 import { VERSION } from '../version.js';
 import { toPosix } from '../walker/rules.js';
 import { copyToClipboard } from './clipboard.js';
@@ -380,7 +380,11 @@ export async function packCommand(directory: string, command: Command, io: CliIO
       let lastTokens = 0;
       let savedRatio = 0;
       if (!opts.quiet || opts.statsJson || opts.watch) {
-        const stats = computeStats(result, document, { models: opts.models.length ? opts.models : [...DEFAULT_MODELS] });
+        const modelIds = opts.models.length ? opts.models : [...DEFAULT_MODELS];
+        const exactTokens = opts.claudeTokens
+          ? await countClaudeTokens(document, modelIds.map(findModel).filter((m): m is NonNullable<typeof m> => !!m))
+          : undefined;
+        const stats = computeStats(result, document, { models: modelIds, exactTokens });
         lastTokens = stats.tokens.cl100k_base.output;
         savedRatio = stats.savedRatio;
         if (opts.statsJson) {

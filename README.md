@@ -148,14 +148,14 @@ astpack summary
 │ Tokens saved         │ 71%                                     │
 └──────────────────────┴─────────────────────────────────────────┘
 
-┌────────────────────┬──────────────┬───────┬──────────┐
-│ Model              │ Input tokens │  Cost │ Raw cost │
-├────────────────────┼──────────────┼───────┼──────────┤
-│ Claude 3.5 Sonnet* │       48,248 │ $0.14 │    $0.50 │
-│ Claude Sonnet 5.5* │       48,248 │ $0.10 │    $0.34 │
-│ GPT-4o             │       47,552 │ $0.12 │    $0.41 │
-└────────────────────┴──────────────┴───────┴──────────┘
-* Claude token counts are estimated with cl100k_base; Claude uses its own tokenizer.
+┌──────────────────────────────┬──────────────┬───────┬──────────┐
+│ Model                        │ Input tokens │  Cost │ Raw cost │
+├──────────────────────────────┼──────────────┼───────┼──────────┤
+│ Claude 3.5 Sonnet (retired)* │       48,248 │ $0.14 │    $0.50 │
+│ Claude Sonnet 5.5*           │       48,248 │ $0.10 │    $0.34 │
+│ GPT-4o                       │       47,552 │ $0.12 │    $0.41 │
+└──────────────────────────────┴──────────────┴───────┴──────────┘
+* Estimated with cl100k_base; Claude tokenizes typically 15-20% higher (more on code). Use --claude-tokens for exact counts.
 
 ┌─────────────────────────────┬────────┬───────┐
 │ Top 5 files                 │ Tokens │ Saved │
@@ -406,6 +406,7 @@ This is a safety net, not a guarantee. Keep secrets out of your repository.
 | `--preset <name>` | `review`, `explain`, `refactor` or `debug`: ready-made options and instructions (see [Presets](#presets)). |
 | `--config <file>` / `--no-config` | Use a specific config file / ignore config files. |
 | `--models <ids>` | Models to price: `claude-3.5-sonnet`, `claude-sonnet-5.5`, `claude-opus-5.5`, `claude-haiku-4.5`, `claude-fable-5.1`, `gpt-4o`, `gpt-4o-mini`, `gpt-4-turbo`. |
+| `--claude-tokens` | Count Claude tokens exactly with Anthropic's token-counting API (one request per Claude model; sends the document; needs `ANTHROPIC_API_KEY` and the optional `@anthropic-ai/sdk`). |
 | `--top <n>` | Largest files listed in the summary (default 5; `0` hides the list). |
 | `-q, --quiet` | Don't print the summary. |
 | `--dry-run` | Compute everything and print the summary without writing the document or copying it (`--stats-json` is still written if requested). |
@@ -592,8 +593,10 @@ back and, on Node 24, over a gigabyte of memory. Set `ASTPACK_WASM_TIERUP=1` to 
 - **Grammar age.** The pre-built grammars date from the Tree-sitter 0.20 era. Very new syntax (for example
   TypeScript `accessor` fields, and some Swift/Kotlin constructs) is flagged as a parse error. The skeleton
   is still produced (text outside recognised bodies is kept verbatim) and the summary lists affected files.
-- **Claude token counts are estimates.** Anthropic's tokenizer is not public; `cl100k_base` is used as a
-  proxy. OpenAI counts are exact for the listed encodings.
+- **Claude token counts are estimates by default.** Anthropic's tokenizer is not public and `cl100k_base`
+  undercounts it (typically by 15–20%, more on code). Pass `--claude-tokens` to get exact per-model counts
+  from the API. OpenAI counts are exact for the listed encodings. Claude 3.5 Sonnet is retired and can only
+  be estimated.
 - **Prices change.** The cost table uses list input prices per million tokens and is meant for comparison.
 - **Lua** and a few other languages have grammars that don't work in this WASM build yet, so they fall
   back to raw inclusion.

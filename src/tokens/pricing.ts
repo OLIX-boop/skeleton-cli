@@ -10,19 +10,22 @@ export interface ModelPricing {
   /** USD per million input tokens. */
   inputPerMTok: number;
   /**
-   * Whether the token count is an estimate from a different tokenizer
-   * (Claude's tokenizer is not public; cl100k_base is a close proxy).
+   * Whether the token count is an estimate from a different tokenizer (Claude's tokenizer
+   * is not public; cl100k_base undercounts it, typically by 15-20% and more on code).
    */
   approximate: boolean;
+  /** Model id for Anthropic's token-counting API (`--claude-tokens`), if it can be counted. */
+  anthropicModel?: string;
 }
 
 /** Input-token list prices (USD / 1M tokens) at the time of writing. */
 export const MODELS: readonly ModelPricing[] = [
-  { id: 'claude-3.5-sonnet', label: 'Claude 3.5 Sonnet', encoding: 'cl100k_base', inputPerMTok: 3, approximate: true },
-  { id: 'claude-sonnet-5.5', label: 'Claude Sonnet 5.5', encoding: 'cl100k_base', inputPerMTok: 2, approximate: true },
-  { id: 'claude-opus-5.5', label: 'Claude Opus 5.5', encoding: 'cl100k_base', inputPerMTok: 4, approximate: true },
-  { id: 'claude-haiku-4.5', label: 'Claude Haiku 4.5', encoding: 'cl100k_base', inputPerMTok: 1, approximate: true },
-  { id: 'claude-fable-5.1', label: 'Claude Fable 5.1', encoding: 'cl100k_base', inputPerMTok: 10, approximate: true },
+  // Retired in October 2025 (list price kept for comparison); the counting API no longer serves it.
+  { id: 'claude-3.5-sonnet', label: 'Claude 3.5 Sonnet (retired)', encoding: 'cl100k_base', inputPerMTok: 3, approximate: true },
+  { id: 'claude-sonnet-5.5', label: 'Claude Sonnet 5.5', encoding: 'cl100k_base', inputPerMTok: 2, approximate: true, anthropicModel: 'claude-sonnet-5-5' },
+  { id: 'claude-opus-5.5', label: 'Claude Opus 5.5', encoding: 'cl100k_base', inputPerMTok: 4, approximate: true, anthropicModel: 'claude-opus-5-5' },
+  { id: 'claude-haiku-4.5', label: 'Claude Haiku 4.5', encoding: 'cl100k_base', inputPerMTok: 1, approximate: true, anthropicModel: 'claude-haiku-4-5' },
+  { id: 'claude-fable-5.1', label: 'Claude Fable 5.1', encoding: 'cl100k_base', inputPerMTok: 10, approximate: true, anthropicModel: 'claude-fable-5-1' },
   { id: 'gpt-4o', label: 'GPT-4o', encoding: 'o200k_base', inputPerMTok: 2.5, approximate: false },
   { id: 'gpt-4o-mini', label: 'GPT-4o mini', encoding: 'o200k_base', inputPerMTok: 0.15, approximate: false },
   { id: 'gpt-4-turbo', label: 'GPT-4 Turbo', encoding: 'cl100k_base', inputPerMTok: 10, approximate: false },

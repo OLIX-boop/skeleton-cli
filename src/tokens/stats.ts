@@ -56,6 +56,8 @@ export interface StatsOptions {
   models?: readonly string[];
   /** Reuse an existing counter (it is not freed). */
   counter?: TokenCounter;
+  /** Exact output token counts per model id (from `countClaudeTokens`), replacing estimates. */
+  exactTokens?: ReadonlyMap<string, number>;
 }
 
 /** Compute token, savings and cost analytics for a rendered pack. */
@@ -83,6 +85,12 @@ export function computeStats(result: PackResult, output: string, options: StatsO
     const models = (options.models ?? []).map(findModel).filter((m): m is ModelPricing => !!m);
     const costs = models.map((model) => {
       const t = tokens[model.encoding];
+      const exact = options.exactTokens?.get(model.id);
+      if (exact !== undefined) {
+        // Scale the raw baseline by the measured ratio for this model's tokenizer.
+        const baseline = t.output > 0 ? Math.round((exact * t.baseline) / t.output) : exact;
+        return { model: { ...model, approximate: false }, tokens: exact, usd: costUsd(exact, model), baselineUsd: costUsd(baseline, model) };
+      }
       return { model, tokens: t.output, usd: costUsd(t.output, model), baselineUsd: costUsd(t.baseline, model) };
     });
 
