@@ -5,6 +5,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `--related [depth]` (config `related`, MCP `related`): also include in full the files within `depth` import
+  hops of a focused file, in either direction. A token budget compresses them after every other file.
+
 ### Changed
 
 - Swift uses tree-sitter-swift 0.7.1, compiled from source, with a fix for scanner state leaking from a file

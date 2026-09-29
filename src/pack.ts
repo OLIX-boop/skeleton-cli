@@ -3,6 +3,7 @@ import type { CommentMode } from './languages/types.js';
 import { transformFile, type FallbackLimits, type FileMode, type Strategy } from './engine/transform.js';
 import type { RedactionHit } from './security/secrets.js';
 import { embeddedForPath, languageForPath } from './languages/index.js';
+import { dependencyGraph, relatedFiles } from './deps.js';
 import { mapLimit } from './util/pool.js';
 import { FocusMatcher, walk, type SkippedEntry, type WalkOptions } from './walker/index.js';
 
@@ -11,6 +12,11 @@ export interface PackOptions extends WalkOptions {
   mode?: FileMode;
   /** Files, directories or globs kept as full source while everything else is skeletonized. */
   focus?: readonly string[];
+  /**
+   * Also keep as full source the files within this many import hops of a focused file
+   * (what it imports and what imports it). Default 0.
+   */
+  related?: number;
   /** Marker text for stripped bodies. */
   placeholder?: string;
   /** Which comments to keep in non-focused files of supported languages (default `all`). */
@@ -37,8 +43,10 @@ export interface PackedFile {
   /** Code-fence language hint. */
   fence: string;
   strategy: Strategy;
-  /** Whether the file matched a `--focus` target. */
+  /** Whether the file is kept as full source because of `--focus` (or `related`). */
   focused: boolean;
+  /** Focused only because it imports, or is imported by, a focus target (`related`). */
+  related?: boolean;
   /** Packaged content. */
   content: string;
   /** Original file content (line endings normalized), used for savings analytics. */
@@ -104,10 +112,24 @@ export async function pack(root: string, options: PackOptions = {}): Promise<Pac
   const walked = await walk(root, options);
   const focus = new FocusMatcher(options.focus ?? [], walked.root, options.cwd);
 
+  const concurrency = options.concurrency ?? 32;
+  const originals = await mapLimit(walked.files, concurrency, (entry) => readText(entry.absPath));
+  const targets = new Set(focus.isEmpty ? [] : walked.files.filter((e) => focus.matches(e.path)).map((e) => e.path));
+  let related = new Set<string>();
+  if ((options.related ?? 0) > 0 && targets.size) {
+    const sources = walked.files.map((e, i) => ({
+      path: e.path,
+      language: (languageForPath(e.path) ?? embeddedForPath(e.path))?.id,
+      original: originals[i]!,
+    }));
+    related = relatedFiles(dependencyGraph({ files: sources }), targets, options.related!);
+  }
+
   let done = 0;
-  const files = await mapLimit(walked.files, options.concurrency ?? 32, async (entry): Promise<PackedFile> => {
-    const original = await readText(entry.absPath);
-    const focused = !focus.isEmpty && focus.matches(entry.path);
+  const indexed = walked.files.map((entry, i) => ({ entry, original: originals[i]! }));
+  const files = await mapLimit(indexed, concurrency, async ({ entry, original }): Promise<PackedFile> => {
+    const isRelated = related.has(entry.path);
+    const focused = targets.has(entry.path) || isRelated;
     const result = await transformFile(entry.path, original, {
       mode: focused ? 'full' : mode,
       placeholder: options.placeholder,
@@ -123,6 +145,7 @@ export async function pack(root: string, options: PackOptions = {}): Promise<Pac
       fence: fenceForStrategy(result.strategy, result.language?.fence ?? fenceFor(entry.path)),
       strategy: result.strategy,
       focused,
+      ...(isRelated ? { related: true } : {}),
       content: result.content,
       original,
       strippedBodies: result.strippedBodies,

@@ -231,6 +231,7 @@ export class AstpackMcpServer {
         description: 'Files, directories or globs (relative to `path`) to include as full source.',
       },
       changed: { type: 'string', description: 'Also focus files changed vs this git ref (e.g. "HEAD" or "main").' },
+      related: { type: 'number', description: 'Also include in full the files within this many import hops of a focused file (e.g. 1).' },
       mode: {
         type: 'string',
         enum: ['skeleton', 'full', 'outline'],
@@ -250,12 +251,14 @@ export class AstpackMcpServer {
       const include = strList(args, 'include');
       const ignore = strList(args, 'ignore');
       const changed = str(args, 'changed');
+      const depth = num(args, 'related');
+      const related = depth === undefined ? undefined : Math.floor(depth);
       const root = await this.resolvePath(str(args, 'path', true)!);
       const info = await stat(root).catch(() => undefined);
       if (!info?.isDirectory()) throw new ToolError(`${root} is not a directory`);
       const focus = focusArgs.map((f) => (/[*?[\]{}]/.test(f) ? f : resolve(root, f)));
       if (changed) focus.push(...(await changedFiles(root, changed)));
-      const result = await pack(root, { mode, focus, cwd: root, comments, include, ignore });
+      const result = await pack(root, { mode, focus, related, cwd: root, comments, include, ignore });
       return { root, result, comments };
     };
 

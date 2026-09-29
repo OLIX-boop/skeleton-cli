@@ -249,6 +249,15 @@ astpack --focus "**/*.test.ts"
 astpack --focus "app/[id]/page.tsx"       # existing paths win over glob syntax
 ```
 
+`--related [depth]` widens the focus along the import graph: the files a focused file imports, and the
+files that import it, are included in full too (one hop by default). They are marked `[related]` in the
+summary, and a token budget compresses them only after every other file:
+
+```sh
+astpack --focus src/billing/invoice.ts --related      # its imports and importers in full
+astpack --changed --related 2                         # changed files plus two hops of neighbours
+```
+
 An outline looks like this:
 
 ```text
@@ -398,6 +407,7 @@ This is a safety net, not a guarantee. Keep secrets out of your repository.
 | `--full` | Include raw source without AST transformation. |
 | `--outline` | List only declarations and signatures (one line each) outside focused files. |
 | `--focus <path>` | Keep a file, directory or glob as full source (repeatable). |
+| `--related [depth]` | Also keep in full the files a focused file imports or is imported by, up to `depth` hops (default 1). |
 | `-c, --clipboard` | Copy the document to the clipboard (pbcopy, PowerShell, wl-copy, xclip, xsel). |
 | `-i, --ignore <patterns>` | Extra gitignore-style excludes (repeatable, comma-separated). |
 | `--include <patterns>` | Only include matching files (repeatable, comma-separated). |

@@ -15,6 +15,7 @@ export interface AstpackConfig {
   format?: 'markdown' | 'json' | 'xml';
   mode?: 'skeleton' | 'full' | 'outline';
   focus?: string[];
+  related?: number;
   clipboard?: boolean;
   ignore?: string[];
   include?: string[];
@@ -49,6 +50,7 @@ export const CONFIG_SCHEMA: Record<keyof AstpackConfig, { kind: Kind; descriptio
   format: { kind: ['markdown', 'json', 'xml'], description: 'Output format.' },
   mode: { kind: ['skeleton', 'full', 'outline'], description: 'Strip function bodies (skeleton), include raw source (full) or list declarations only (outline).' },
   focus: { kind: 'string[]', description: 'Files, directories or globs kept as full source.' },
+  related: { kind: 'number', description: 'Also keep as full source the files within this many import hops of a focused file.' },
   clipboard: { kind: 'boolean', description: 'Copy the document to the clipboard.' },
   ignore: { kind: 'string[]', description: 'Extra gitignore-style exclude patterns (merged with --ignore).' },
   include: { kind: 'string[]', description: 'Only include files matching these patterns (merged with --include).' },

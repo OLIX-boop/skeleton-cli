@@ -36,6 +36,7 @@ export const renderXml: Renderer = (result, options) => {
     if (file.language) attrs.push(`language="${file.language}"`);
     attrs.push(`strategy="${file.strategy}"`);
     if (file.focused) attrs.push('focus="true"');
+    if (file.related) attrs.push('related="true"');
     out.push(`<file ${attrs.join(' ')}>`, ensureTrailingNewline(file.content) + '</file>');
   }
   out.push('</files>', '</project>');

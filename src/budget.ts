@@ -41,7 +41,7 @@ export interface BudgetReport {
   /** Tokens of the document before any compression. */
   initialTokens: number;
   changes: BudgetChange[];
-  /** Tokens used by focused files, which are never compressed. */
+  /** Tokens used by focus targets, which are never compressed (related files are). */
   focusTokens: number;
 }
 
@@ -90,7 +90,8 @@ interface Candidate {
 /**
  * Compress a pack until its rendered document fits in `maxTokens`, degrading files one
  * phase at a time (full → skeleton → doc-comments only → no comments → outline → omitted) and
- * choosing the largest savings first within each phase. Focused files are never touched.
+ * choosing the largest savings first within each phase. Focus targets are never touched;
+ * files focused only as `related` are compressed after every other file.
  */
 export async function fitToBudget(input: PackResult, options: BudgetOptions): Promise<BudgetReport> {
   const counter = options.counter ?? new TokenCounter();
@@ -103,11 +104,11 @@ export async function fitToBudget(input: PackResult, options: BudgetOptions): Pr
     let tokens = counter.count(document, encoding);
     const initialTokens = tokens;
     const changes: BudgetChange[] = [];
-    const focusTokens = files.filter((f) => f.focused).reduce((n, f) => n + counter.count(f.content, encoding), 0);
+    const focusTokens = files.filter((f) => f.focused && !f.related).reduce((n, f) => n + counter.count(f.content, encoding), 0);
 
     const candidates: Candidate[] = files
       .map((file, index) => ({ file, index }))
-      .filter(({ file }) => !file.focused)
+      .filter(({ file }) => !file.focused || file.related)
       .map(({ file, index }) => {
         const levels = ladder(file, baseComments);
         return {
@@ -121,7 +122,9 @@ export async function fitToBudget(input: PackResult, options: BudgetOptions): Pr
     const variant = async (c: Candidate, level: number) => {
       const cached = c.variants.get(level);
       if (cached) return cached;
-      const base = c.variants.get(0)!.file;
+      // A compressed related file is no longer shown as full source.
+      const { related: _related, ...unfocused } = c.variants.get(0)!.file;
+      const base: PackedFile = { ...unfocused, focused: false };
       const target = c.levels[level]!;
       let file: PackedFile;
       if (target.name === 'omitted') {
@@ -160,10 +163,13 @@ export async function fitToBudget(input: PackResult, options: BudgetOptions): Pr
     // savings first) to cover the remaining gap; the legend and headings shift a little as
     // files change, so a few measurements per phase converge on the budget.
     const phases: Level['name'][] = ['skeleton', 'docs', 'bare', 'outline', 'omitted'];
-    for (const phase of phases) {
+    const isRelated = (c: Candidate) => !!c.variants.get(0)!.file.related;
+    const tiers = [candidates.filter((c) => !isRelated(c)), candidates.filter(isRelated)];
+    for (const [tier, phase] of tiers.flatMap((t) => phases.map((p) => [t, p] as const))) {
+      if (tokens <= options.maxTokens) break;
       while (tokens > options.maxTokens) {
         const moves: { c: Candidate; to: number; saving: number; rank: number }[] = [];
-        for (const c of candidates) {
+        for (const c of tier) {
           const to = c.levels.findIndex((l, i) => i > c.level && l.name === phase);
           if (to === -1) continue;
           const now = c.variants.get(c.level)!.tokens;
@@ -186,7 +192,6 @@ export async function fitToBudget(input: PackResult, options: BudgetOptions): Pr
         }
         measure();
       }
-      if (tokens <= options.maxTokens) break;
     }
 
     // Backfill: the greedy pass may overshoot, so restore omitted files (most valuable and
@@ -195,7 +200,8 @@ export async function fitToBudget(input: PackResult, options: BudgetOptions): Pr
       const omitted = candidates
         .filter((c) => c.levels[c.level]!.name === 'omitted' && c.level > 0)
         .map((c) => ({ c, prev: c.level - 1, cost: c.variants.get(c.level - 1)!.tokens + 12, rank: omissionRank(c.variants.get(0)!.file) }))
-        .sort((a, b) => b.rank - a.rank || a.cost - b.cost);
+        // Related files first: they were the last to be reduced.
+        .sort((a, b) => Number(isRelated(b.c)) - Number(isRelated(a.c)) || b.rank - a.rank || a.cost - b.cost);
       let headroom = options.maxTokens - tokens;
       const restored: typeof omitted = [];
       for (const item of omitted) {

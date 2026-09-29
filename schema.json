@@ -40,6 +40,11 @@
       },
       "description": "Files, directories or globs kept as full source."
     },
+    "related": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Also keep as full source the files within this many import hops of a focused file."
+    },
     "clipboard": {
       "type": "boolean",
       "description": "Copy the document to the clipboard."

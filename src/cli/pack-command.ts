@@ -283,6 +283,7 @@ export async function packCommand(directory: string, command: Command, io: CliIO
       const packOptions: PackOptions = {
         mode: opts.full ? 'full' : opts.outline ? 'outline' : 'skeleton',
         focus,
+        related: opts.related === true ? 1 : opts.related || 0,
         // Relative --focus paths name files inside a remote repository, not the local cwd.
         cwd: opts.remote ? root : io.cwd,
         placeholder: opts.placeholder,

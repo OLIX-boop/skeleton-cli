@@ -10,6 +10,7 @@ export interface PackCliOptions {
   full?: boolean;
   outline?: boolean;
   focus: string[];
+  related?: number | boolean;
   clipboard?: boolean;
   ignore: string[];
   include: string[];

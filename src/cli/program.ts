@@ -41,6 +41,11 @@ export function buildProgram(io: CliIO, setExit: (code: number) => void): Comman
     .option('--full', 'include raw source without AST transformation')
     .option('--outline', 'list only declarations and signatures (one line each) outside focused files')
     .option('--focus <path>', 'keep a file, directory or glob as full source; skeletonize the rest (repeatable)', collect)
+    .option(
+      '--related [depth]',
+      'also keep as full source the files a focused file imports or is imported by, up to depth hops (default 1)',
+      wrapParser(parsePositiveInt),
+    )
     .option('-c, --clipboard', 'copy the packed document to the clipboard')
     .option('-i, --ignore <patterns>', 'extra gitignore-style patterns to exclude (repeatable, comma-separated)', collectList)
     .option('--include <patterns>', 'only include files matching these patterns (repeatable, comma-separated)', collectList)

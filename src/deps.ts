@@ -1,5 +1,13 @@
 import { posix } from 'node:path';
-import type { PackedFile, PackResult } from './pack.js';
+/** What the graph needs to know about a file. */
+export interface SourceFile {
+  /** POSIX path relative to the root. */
+  path: string;
+  /** Language id (e.g. `typescript`), if recognised. */
+  language?: string;
+  /** Source text. */
+  original: string;
+}
 
 /** Internal dependency graph: file → files it imports (POSIX paths relative to the root). */
 export type DependencyGraph = Map<string, string[]>;
@@ -18,7 +26,7 @@ class FileIndex {
   /** Go modules in the pack: module path → directory of its go.mod. */
   readonly goModules: { path: string; dir: string }[] = [];
 
-  constructor(files: readonly PackedFile[]) {
+  constructor(files: readonly SourceFile[]) {
     this.paths = new Set(files.map((f) => f.path));
     for (const f of files) {
       const dir = posix.dirname(f.path);
@@ -221,7 +229,7 @@ const RESOLVERS: Record<string, Resolver> = {
 };
 
 /** Build the internal import graph of a pack (edges to files outside the pack are dropped). */
-export function dependencyGraph(result: PackResult): DependencyGraph {
+export function dependencyGraph(result: { files: readonly SourceFile[] }): DependencyGraph {
   const index = new FileIndex(result.files);
   const graph: DependencyGraph = new Map();
   for (const file of result.files) {
@@ -250,10 +258,41 @@ export function mostImported(graph: DependencyGraph, limit = 10): { path: string
 }
 
 /** Render the graph as compact text: one `file -> dep, dep` line per importing file. */
-export function renderGraph(graph: DependencyGraph, files: readonly PackedFile[]): string {
+export function renderGraph(graph: DependencyGraph, files: readonly { path: string }[]): string {
   const order = new Map(files.map((f, i) => [f.path, i]));
   return [...graph]
     .sort(([a], [b]) => (order.get(a) ?? 0) - (order.get(b) ?? 0))
     .map(([from, deps]) => `${from} -> ${deps.join(', ')}`)
     .join('\n');
+}
+
+/**
+ * Files within `depth` import hops of `seeds`, in either direction (what they import and
+ * what imports them). The seeds themselves are not included.
+ */
+export function relatedFiles(graph: DependencyGraph, seeds: Iterable<string>, depth: number): Set<string> {
+  const neighbours = new Map<string, string[]>();
+  const link = (a: string, b: string) => (neighbours.get(a) ?? neighbours.set(a, []).get(a)!).push(b);
+  for (const [from, deps] of graph) {
+    for (const to of deps) {
+      link(from, to);
+      link(to, from);
+    }
+  }
+  const seen = new Set(seeds);
+  const related = new Set<string>();
+  let frontier = [...seen];
+  for (let hop = 0; hop < depth && frontier.length; hop++) {
+    const next: string[] = [];
+    for (const path of frontier) {
+      for (const n of neighbours.get(path) ?? []) {
+        if (seen.has(n)) continue;
+        seen.add(n);
+        related.add(n);
+        next.push(n);
+      }
+    }
+    frontier = next;
+  }
+  return related;
 }

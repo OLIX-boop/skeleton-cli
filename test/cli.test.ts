@@ -84,6 +84,21 @@ describe('cli', () => {
     expect((await cli(['--stdout', '--outline', '--full'], root)).code).toBe(1);
   });
 
+  it('supports --related, with or without a depth', async () => {
+    const t = await makeTree({
+      'a.ts': "import { b } from './b';\nexport function a() {\n  return b();\n}\n",
+      'b.ts': "import { c } from './c';\nexport function b() {\n  return c();\n}\n",
+      'c.ts': 'export function c() {\n  return 1;\n}\n',
+    });
+    cleanups.push(t.cleanup);
+    const one = await cli(['--stdout', '--no-color', '--focus', 'a.ts', '--related'], t.root);
+    expect(one.stdout).toContain('return c();');
+    expect(one.stdout).not.toContain('return 1;');
+    expect(one.stderr).toContain('b.ts [related]');
+    const two = await cli(['--stdout', '-q', '--focus', 'a.ts', '--related', '2'], t.root);
+    expect(two.stdout).toContain('return 1;');
+  });
+
   it('supports --full', async () => {
     const root = await project();
     const { stdout } = await cli(['--stdout', '-q', '--full'], root);

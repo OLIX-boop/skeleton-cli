@@ -88,7 +88,7 @@ export function renderSummary(stats: PackStats, options: SummaryOptions): string
 
   if (options.top > 0 && stats.files.length) {
     const top = stats.files.slice(0, options.top).map((f) => [
-      f.path + (f.focused ? c.magenta(' [focus]') : ''),
+      f.path + (f.related ? c.magenta(' [related]') : f.focused ? c.magenta(' [focus]') : ''),
       formatNumber(f.tokens),
       f.originalTokens > f.tokens ? c.green(formatPercent(1 - f.tokens / f.originalTokens)) : c.dim('-'),
     ]);
