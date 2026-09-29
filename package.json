@@ -1,0 +1,84 @@
+{
+  "name": "astpack",
+  "version": "0.1.0",
+  "description": "Compress a codebase into an LLM-ready prompt by stripping function bodies with Tree-sitter (Skeleton Mode).",
+  "keywords": [
+    "llm",
+    "prompt",
+    "context",
+    "tree-sitter",
+    "ast",
+    "skeleton",
+    "repomix",
+    "codebase",
+    "tokens",
+    "mcp",
+    "claude",
+    "gpt",
+    "cli"
+  ],
+  "homepage": "https://github.com/OLIX-boop/skeleton-cli#readme",
+  "bugs": {
+    "url": "https://github.com/OLIX-boop/skeleton-cli/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OLIX-boop/skeleton-cli.git"
+  },
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "astpack": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.map",
+    "grammars",
+    "schema.json"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "start": "node dist/cli.js",
+    "prepublishOnly": "npm run build",
+    "schema": "npm run build && node scripts/generate-schema.mjs",
+    "check": "npm run lint && npm run typecheck && npm test",
+    "grammars": "node scripts/vendor-grammars.mjs",
+    "coverage": "vitest run --coverage --coverage.include=src/**"
+  },
+  "dependencies": {
+    "commander": "^15.0.0",
+    "gpt-tokenizer": "^4.0.0",
+    "ignore": "^7.0.10",
+    "web-tree-sitter": "~0.25.10"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^22.20.4",
+    "@vitest/coverage-v8": "^5.0.2",
+    "eslint": "^9.39.5",
+    "globals": "^17.12.0",
+    "tiktoken": "^1.0.22",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.71.0",
+    "vitest": "^5.0.2"
+  },
+  "optionalDependencies": {
+    "@anthropic-ai/sdk": "^0.129.0"
+  }
+}

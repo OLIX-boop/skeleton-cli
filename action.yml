@@ -1,0 +1,83 @@
+name: astpack
+description: Pack a repository into an LLM-ready prompt (Tree-sitter skeletons) and report token counts.
+author: astpack contributors
+branding:
+  icon: package
+  color: purple
+
+inputs:
+  path:
+    description: Directory to pack.
+    default: '.'
+  args:
+    description: Extra command-line arguments, e.g. "--focus src/api --comments docs --max-tokens 100k".
+    default: ''
+  format:
+    description: Output format (markdown, xml or json).
+    default: markdown
+  output:
+    description: Output file (default astpack-output.<md|xml|json> for the chosen format).
+    default: ''
+  version:
+    description: astpack version to run from npm.
+    default: latest
+  upload:
+    description: Upload the packed document as a workflow artifact.
+    default: 'true'
+  artifact-name:
+    description: Name of the uploaded artifact.
+    default: astpack
+  summary:
+    description: Write a token summary to the job summary page.
+    default: 'true'
+
+outputs:
+  output-path:
+    description: Path of the packed document (the first part when --split-tokens is used; empty with --stdout/--dry-run).
+    value: ${{ steps.pack.outputs.output-path }}
+  output-paths:
+    description: Every file written, one per line (several with --split-tokens).
+    value: ${{ steps.pack.outputs.output-paths }}
+  files:
+    description: Number of files included.
+    value: ${{ steps.pack.outputs.files }}
+  tokens:
+    description: Tokens of the packed document (cl100k_base).
+    value: ${{ steps.pack.outputs.tokens }}
+  raw-tokens:
+    description: Estimated tokens of the same files as raw source (cl100k_base).
+    value: ${{ steps.pack.outputs.raw-tokens }}
+  saved-percent:
+    description: Percentage of tokens saved compared with raw source.
+    value: ${{ steps.pack.outputs.saved-percent }}
+
+runs:
+  using: composite
+  steps:
+    - name: Pack
+      id: pack
+      shell: bash
+      env:
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_ARGS: ${{ inputs.args }}
+        INPUT_FORMAT: ${{ inputs.format }}
+        INPUT_OUTPUT: ${{ inputs.output }}
+        INPUT_VERSION: ${{ inputs.version }}
+        INPUT_SUMMARY: ${{ inputs.summary }}
+      run: |
+        stats="$RUNNER_TEMP/astpack-stats.json"
+        output="$INPUT_OUTPUT"
+        if [ -z "$output" ]; then
+          case "$INPUT_FORMAT" in json) ext=json ;; xml) ext=xml ;; *) ext=md ;; esac
+          output="astpack-output.$ext"
+        fi
+        # shellcheck disable=SC2086 # INPUT_ARGS is intentionally word-split
+        npx --yes "astpack@$INPUT_VERSION" "$INPUT_PATH" -f "$INPUT_FORMAT" -o "$output" \
+          --stats-json "$stats" --no-color $INPUT_ARGS
+        node "$GITHUB_ACTION_PATH/scripts/action-report.mjs" "$stats" "$output" "$INPUT_SUMMARY"
+    - name: Upload
+      if: inputs.upload == 'true' && steps.pack.outputs.output-paths != ''
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ steps.pack.outputs.output-paths }}
