@@ -31,3 +31,23 @@ export {
   type WalkOptions,
   type WalkResult,
 } from './walker/index.js';
+export { render, renderTree, toJsonDocument, OUTPUT_FORMATS, type OutputFormat, type RenderOptions, type JsonDocument } from './output/index.js';
+export { fitToBudget, type BudgetOptions, type BudgetReport, type BudgetChange } from './budget.js';
+export { splitPack, partPath, type SplitOptions, type SplitPart, type SplitReport } from './split.js';
+export {
+  computeStats,
+  TokenCounter,
+  MODELS,
+  DEFAULT_MODELS,
+  findModel,
+  costUsd,
+  type PackStats,
+  type ModelPricing,
+  type EncodingName,
+} from './tokens/index.js';
+export { redactSecrets, SECRET_RULES, type RedactionHit, type RedactionResult, type SecretRule } from './security/secrets.js';
+export { changedFiles, diffText, cloneRemote, parseRemote, type RemoteSpec } from './git.js';
+export { loadConfig, findConfig, validateConfig, type AstpackConfig } from './config.js';
+export { AstpackMcpServer, serveStdio, type ServerOptions } from './mcp/server.js';
+export type { CommentMode } from './languages/types.js';
+export { VERSION } from './version.js';
