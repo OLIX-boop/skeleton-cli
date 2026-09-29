@@ -21,6 +21,8 @@ export interface BudgetOptions {
   comments?: CommentMode;
   placeholder?: string;
   fallback?: Partial<FallbackLimits>;
+  /** Whether to mask secrets in re-transformed files (default true). */
+  redact?: boolean;
   counter?: TokenCounter;
 }
 
@@ -120,15 +122,24 @@ export async function fitToBudget(input: PackResult, options: BudgetOptions): Pr
       const target = c.levels[level]!;
       let file: PackedFile;
       if (target.name === 'omitted') {
-        file = { ...base, content: '', strategy: 'omitted', strippedBodies: 0, strippedComments: 0 };
+        file = { ...base, content: '', strategy: 'omitted', strippedBodies: 0, strippedComments: 0, redactions: [] };
       } else {
         const t = await transformFile(base.path, base.original, {
           mode: target.mode!,
           comments: target.comments,
           placeholder: options.placeholder,
           fallback: options.fallback,
+          redact: options.redact,
         });
-        file = { ...base, content: t.content, strategy: t.strategy, strippedBodies: t.strippedBodies, strippedComments: t.strippedComments, parseErrors: t.parseErrors };
+        file = {
+          ...base,
+          content: t.content,
+          strategy: t.strategy,
+          strippedBodies: t.strippedBodies,
+          strippedComments: t.strippedComments,
+          redactions: t.redactions,
+          parseErrors: t.parseErrors,
+        };
       }
       const v = { file, tokens: counter.count(file.content, encoding) };
       c.variants.set(level, v);

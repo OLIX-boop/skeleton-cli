@@ -12,6 +12,7 @@ import { formatNumber, parsePositiveInt, parseSize, parseTokenCount } from './fo
 import { renderSummary } from './summary.js';
 import { toPosix } from '../walker/rules.js';
 import { changedFiles, cloneRemote, diffText, parseRemote } from '../git.js';
+import { redactSecrets } from '../security/secrets.js';
 import type { CommentMode } from '../languages/types.js';
 
 export interface CliIO {
@@ -45,6 +46,7 @@ interface RawOptions {
   changed?: string | boolean;
   diff?: string | boolean;
   remote?: string;
+  redact: boolean;
   models: string[];
   top: number;
   quiet?: boolean;
@@ -102,6 +104,7 @@ export function buildProgram(): Command {
     .option('--no-tree', 'omit the directory tree')
     .option('--instructions <text>', 'instructions placed at the top of the document (prefix with @ to read a file)')
     .option('--follow-symlinks', 'follow symbolic links')
+    .option('--no-redact', 'do not mask likely secrets (API keys, tokens, private keys, passwords)')
     .option('--changed [ref]', 'focus files changed vs a git ref (default HEAD: uncommitted and untracked changes)')
     .option('--diff [ref]', 'include the git diff vs a ref (default: the --changed ref, or HEAD)')
     .option('--remote <repo>', 'pack a remote repository (owner/repo, URL, optionally #branch) via a shallow clone')
@@ -123,6 +126,10 @@ Examples:
   $ npx astpack -f xml --stdout | llm    pipe XML output into another tool`,
     );
   return program;
+}
+
+function maybeRedact(text: string, redact: boolean): string {
+  return redact ? redactSecrets(text).content : text;
 }
 
 async function readInstructions(value: string | undefined, cwd: string): Promise<string | undefined> {
@@ -195,6 +202,7 @@ export async function run(argv: readonly string[], io: CliIO = { stdout: process
       cwd: io.cwd,
       placeholder: opts.placeholder,
       comments: opts.comments,
+      redact: opts.redact,
       fallback: {
         ...(opts.fallbackLines !== undefined ? { maxLines: opts.fallbackLines } : {}),
         ...(opts.fallbackChars !== undefined ? { maxChars: opts.fallbackChars } : {}),
@@ -232,7 +240,7 @@ export async function run(argv: readonly string[], io: CliIO = { stdout: process
       instructions: await readInstructions(opts.instructions, io.cwd),
       focus: changedRef ? [...opts.focus, `changed vs ${changedRef}`] : opts.focus,
       version: VERSION,
-      diff: diffRef ? { ref: diffRef, text: await diffText(root, diffRef) } : undefined,
+      diff: diffRef ? { ref: diffRef, text: maybeRedact(await diffText(root, diffRef), opts.redact) } : undefined,
     };
     let document: string;
     let budget: BudgetReport | undefined;
@@ -243,6 +251,7 @@ export async function run(argv: readonly string[], io: CliIO = { stdout: process
         comments: opts.comments,
         placeholder: opts.placeholder,
         fallback: packOptions.fallback,
+        redact: opts.redact,
       });
       result = budget.result;
       document = budget.document;

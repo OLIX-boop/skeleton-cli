@@ -88,6 +88,13 @@ export function renderSummary(stats: PackStats, options: SummaryOptions): string
     out.push('', table(top, ['left', 'right', 'right'], [`Top ${top.length} files`, 'Tokens', 'Saved']));
   }
 
+  if (stats.redactedFiles.length) {
+    const total = stats.redactedFiles.reduce((n, f) => n + f.count, 0);
+    const shown = stats.redactedFiles.slice(0, 5).map((f) => f.path).join(', ');
+    const more = stats.redactedFiles.length > 5 ? ` and ${stats.redactedFiles.length - 5} more` : '';
+    out.push('', c.yellow(`⚠ Masked ${total} likely secret${total === 1 ? '' : 's'} in ${shown}${more} (disable with --no-redact).`));
+  }
+
   if (stats.parseErrorFiles.length) {
     const shown = stats.parseErrorFiles.slice(0, 5).join(', ');
     const more = stats.parseErrorFiles.length > 5 ? ` and ${stats.parseErrorFiles.length - 5} more` : '';

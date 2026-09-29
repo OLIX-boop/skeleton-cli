@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import type { CommentMode } from './languages/types.js';
 import { transformFile, type FallbackLimits, type FileMode, type Strategy } from './engine/transform.js';
+import type { RedactionHit } from './security/secrets.js';
 import { mapLimit } from './util/pool.js';
 import { FocusMatcher, walk, type SkippedEntry, type WalkOptions } from './walker/index.js';
 
@@ -13,6 +14,8 @@ export interface PackOptions extends WalkOptions {
   placeholder?: string;
   /** Which comments to keep in non-focused files of supported languages (default `all`). */
   comments?: CommentMode;
+  /** Mask likely secrets in every file, focused ones included. Default true. */
+  redact?: boolean;
   /** Limits for unsupported files in skeleton mode. */
   fallback?: Partial<FallbackLimits>;
   /** Directory relative focus paths are resolved against. Defaults to `process.cwd()`. */
@@ -41,6 +44,8 @@ export interface PackedFile {
   original: string;
   strippedBodies: number;
   strippedComments: number;
+  /** Secrets masked in `content`. */
+  redactions: RedactionHit[];
   parseErrors: boolean;
 }
 
@@ -100,6 +105,7 @@ export async function pack(root: string, options: PackOptions = {}): Promise<Pac
       placeholder: options.placeholder,
       comments: focused ? 'all' : options.comments,
       fallback: options.fallback,
+      redact: options.redact,
     });
     options.onProgress?.(++done, walked.files.length, entry.path);
     return {
@@ -113,6 +119,7 @@ export async function pack(root: string, options: PackOptions = {}): Promise<Pac
       original,
       strippedBodies: result.strippedBodies,
       strippedComments: result.strippedComments,
+      redactions: result.redactions,
       parseErrors: result.parseErrors,
     };
   });

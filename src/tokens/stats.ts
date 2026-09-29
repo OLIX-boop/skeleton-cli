@@ -38,6 +38,8 @@ export interface PackStats {
   byStrategy: Record<string, number>;
   strippedBodies: number;
   strippedComments: number;
+  /** Files with masked secrets and how many were masked in each. */
+  redactedFiles: { path: string; count: number }[];
   parseErrorFiles: string[];
   outputChars: number;
   outputBytes: number;
@@ -100,6 +102,7 @@ export function computeStats(result: PackResult, output: string, options: StatsO
       byStrategy,
       strippedBodies: result.files.reduce((n, f) => n + f.strippedBodies, 0),
       strippedComments: result.files.reduce((n, f) => n + f.strippedComments, 0),
+      redactedFiles: result.files.filter((f) => f.redactions.length).map((f) => ({ path: f.path, count: f.redactions.length })),
       parseErrorFiles: result.files.filter((f) => f.parseErrors).map((f) => f.path),
       outputChars: output.length,
       outputBytes: Buffer.byteLength(output),

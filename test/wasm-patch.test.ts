@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
@@ -9,7 +10,7 @@ const require = createRequire(import.meta.url);
 const grammar = (name: string) => join(dirname(require.resolve('tree-sitter-wasms/package.json')), 'out', `tree-sitter-${name}.wasm`);
 
 function functionImports(bytes: Uint8Array): string[] {
-  return WebAssembly.Module.imports(new WebAssembly.Module(bytes))
+  return WebAssembly.Module.imports(new WebAssembly.Module(bytes as Uint8Array<ArrayBuffer>))
     .filter((i) => i.kind === 'function')
     .map((i) => i.name);
 }
@@ -22,7 +23,7 @@ describe('renameImports', () => {
     const imports = functionImports(patched);
     expect(imports).not.toContain('isalpha');
     expect(imports).toContain('iswalpha');
-    expect(WebAssembly.validate(patched)).toBe(true);
+    expect(WebAssembly.validate(patched as Uint8Array<ArrayBuffer>)).toBe(true);
   });
 
   it('returns the input unchanged when nothing matches', async () => {

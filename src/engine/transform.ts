@@ -1,5 +1,6 @@
 import { embeddedForPath, languageForPath, LANGUAGES, type EmbeddedSpec } from '../languages/index.js';
 import type { CommentMode } from '../languages/types.js';
+import { redactSecrets, type RedactionHit } from '../security/secrets.js';
 import { skeletonize } from './skeleton.js';
 
 export type FileMode = 'skeleton' | 'full';
@@ -29,6 +30,8 @@ export interface TransformOptions {
   placeholder?: string;
   /** Which comments to keep in supported languages (default `all`). */
   comments?: CommentMode;
+  /** Mask likely secrets (API keys, tokens, private keys, passwords). Default true. */
+  redact?: boolean;
   fallback?: Partial<FallbackLimits>;
 }
 
@@ -44,6 +47,8 @@ export interface TransformedFile {
   language?: FileLanguage;
   strippedBodies: number;
   strippedComments: number;
+  /** Secrets masked in the content. */
+  redactions: RedactionHit[];
   /** The parser reported syntax errors; the skeleton is best-effort. */
   parseErrors: boolean;
 }
@@ -97,6 +102,13 @@ async function transformEmbedded(content: string, spec: EmbeddedSpec, bodies: bo
 
 /** Produce the packaged content for a single file. */
 export async function transformFile(filePath: string, content: string, options: TransformOptions): Promise<TransformedFile> {
+  const result = await transformContent(filePath, content, options);
+  if (options.redact === false) return result;
+  const redacted = redactSecrets(result.content);
+  return redacted.hits.length ? { ...result, content: redacted.content, redactions: redacted.hits } : result;
+}
+
+async function transformContent(filePath: string, content: string, options: TransformOptions): Promise<TransformedFile> {
   const comments = options.comments ?? 'all';
   const bodies = options.mode === 'skeleton';
   const verbatim = (language?: FileLanguage): TransformedFile => ({
@@ -105,6 +117,7 @@ export async function transformFile(filePath: string, content: string, options: 
     language,
     strippedBodies: 0,
     strippedComments: 0,
+    redactions: [],
     parseErrors: false,
   });
 
@@ -113,7 +126,7 @@ export async function transformFile(filePath: string, content: string, options: 
     const language = { id: embedded.id, fence: embedded.fence };
     if (!bodies && comments === 'all') return verbatim(language);
     const result = await transformEmbedded(content, embedded, bodies, { ...options, comments });
-    return { ...result, strategy: bodies ? 'skeleton' : 'full', language };
+    return { ...result, strategy: bodies ? 'skeleton' : 'full', language, redactions: [] };
   }
 
   const language = languageForPath(filePath);
@@ -133,6 +146,7 @@ export async function transformFile(filePath: string, content: string, options: 
       language,
       strippedBodies: result.strippedBodies,
       strippedComments: result.strippedComments,
+      redactions: [],
       parseErrors: result.hasErrors,
     };
   }

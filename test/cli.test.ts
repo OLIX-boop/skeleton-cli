@@ -149,6 +149,18 @@ describe('cli', () => {
     expect((await cli(['--max-tokens', 'lots'], root)).stderr).toContain('Invalid token count');
   });
 
+  it('masks secrets unless --no-redact is given', async () => {
+    const root = await project();
+    const token = 'ghp_' + 'a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8';
+    await writeFile(join(root, 'config.ts'), `export const token = "${token}";\n`);
+    const masked = await cli(['--stdout', '--no-color'], root);
+    expect(masked.stdout).not.toContain(token);
+    expect(masked.stdout).toContain('[REDACTED:github-token]');
+    expect(masked.stderr).toContain('Masked 1 likely secret in config.ts');
+    const raw = await cli(['--stdout', '-q', '--no-redact'], root);
+    expect(raw.stdout).toContain(token);
+  });
+
   it('prices selected models', async () => {
     const root = await project();
     const { stderr } = await cli(['--stdout', '--no-color', '--models', 'claude-opus-5.5,gpt-4o-mini'], root);

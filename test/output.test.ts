@@ -79,6 +79,7 @@ describe('computeStats', () => {
         original: 'function f() {\n  const values = [1, 2, 3, 4, 5, 6, 7, 8, 9];\n  return values.map((v) => v * 2).filter(Boolean);\n}\n',
         strippedBodies: 1,
         strippedComments: 0,
+        redactions: [],
         parseErrors: false,
       },
       {
@@ -91,6 +92,7 @@ describe('computeStats', () => {
         original: '# Hi\n',
         strippedBodies: 0,
         strippedComments: 0,
+        redactions: [],
         parseErrors: true,
       },
     ],
