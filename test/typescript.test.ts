@@ -1,21 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { languageForPath, skeletonize, type LanguageId } from '../src/index.js';
-
-const P = '{ /* ... */ }';
+import { expectValid as expectValidIn, P, skel as skelIn } from './helpers.js';
 
 async function skel(source: string, lang: LanguageId = 'typescript') {
-  return (await skeletonize(source, lang)).code;
+  return skelIn(source, lang);
 }
 
-/** Skeleton output should itself be syntactically valid code. */
 async function expectValid(source: string, lang: LanguageId = 'typescript') {
-  const once = await skeletonize(source, lang);
-  expect(once.hasErrors).toBe(false);
-  const reparsed = await skeletonize(once.code, lang);
-  expect(reparsed.hasErrors).toBe(false);
-  // Idempotent: skeletonizing a skeleton changes nothing.
-  expect(reparsed.code).toBe(once.code);
-  return once;
+  return expectValidIn(source, lang);
 }
 
 describe('TypeScript functions', () => {
@@ -344,7 +336,7 @@ module.exports = { Store, App, id: (x) => x };
 describe('options and diagnostics', () => {
   it('supports a custom placeholder', async () => {
     const out = await skeletonize('function f() { return 1; }', 'typescript', {
-      placeholder: '/* ... omitted ... */',
+      placeholder: '... omitted ...',
     });
     expect(out.code).toBe('function f() { /* ... omitted ... */ }');
   });

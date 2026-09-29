@@ -3,7 +3,10 @@ import { LANGUAGES, type LanguageId, type LanguageSpec } from '../languages/inde
 import { getParser } from './parser.js';
 
 export interface SkeletonOptions {
-  /** Text placed inside stripped bodies. Defaults to the language's placeholder. */
+  /**
+   * Marker text placed inside stripped bodies (default `...`). Each language wraps it in
+   * syntax that keeps the output valid, e.g. `{ /* ... *\/ }` or `...`.
+   */
   placeholder?: string;
 }
 
@@ -16,13 +19,15 @@ export interface SkeletonResult {
   hasErrors: boolean;
 }
 
+export const DEFAULT_PLACEHOLDER = '...';
+
 interface Edit {
   start: number;
   end: number;
   text: string;
 }
 
-function collectEdits(root: Node, spec: LanguageSpec, placeholder: string): Edit[] {
+function collectEdits(source: string, root: Node, spec: LanguageSpec, placeholder: string): Edit[] {
   const edits: Edit[] = [];
   const stack: Node[] = [root];
   while (stack.length > 0) {
@@ -30,11 +35,12 @@ function collectEdits(root: Node, spec: LanguageSpec, placeholder: string): Edit
     const replacement = spec.bodyReplacement(node, placeholder);
     const skipId = replacement?.node.id;
     if (replacement) {
-      edits.push({
-        start: replacement.start ?? replacement.node.startIndex,
-        end: replacement.node.endIndex,
-        text: replacement.text,
-      });
+      const start = replacement.start ?? replacement.node.startIndex;
+      const end = replacement.node.endIndex;
+      // Already a placeholder (e.g. re-processing skeleton output): nothing to strip.
+      if (source.slice(start, end) !== replacement.text) {
+        edits.push({ start, end, text: replacement.text });
+      }
     }
     // Keep walking the rest of the node (e.g. default parameter values may contain
     // closures), but never descend into a subtree that has been replaced.
@@ -71,7 +77,7 @@ export async function skeletonize(
   const tree = parser.parse(source);
   if (!tree) throw new Error(`Failed to parse source as ${spec.id}`);
   try {
-    const edits = collectEdits(tree.rootNode, spec, options.placeholder ?? spec.defaultPlaceholder);
+    const edits = collectEdits(source, tree.rootNode, spec, options.placeholder ?? DEFAULT_PLACEHOLDER);
     return {
       code: applyEdits(source, edits),
       strippedBodies: edits.length,

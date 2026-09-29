@@ -1,4 +1,5 @@
 import type { Node } from 'web-tree-sitter';
+import { braceBlock as block } from './common.js';
 import type { BodyReplacement, LanguageSpec } from './types.js';
 
 /** Nodes whose `body` field holds an implementation (functions, methods, closures). */
@@ -11,10 +12,6 @@ const FUNCTION_LIKE = new Set([
   'arrow_function',
   'method_definition',
 ]);
-
-function block(placeholder: string): string {
-  return `{ ${placeholder} }`;
-}
 
 /**
  * TypeScript / JavaScript skeleton rules.
@@ -51,14 +48,12 @@ function bodyReplacement(node: Node, placeholder: string): BodyReplacement | nul
   return null;
 }
 
-const shared = {
-  bodyReplacement,
-  defaultPlaceholder: '/* ... */',
-} satisfies Pick<LanguageSpec, 'bodyReplacement' | 'defaultPlaceholder'>;
+const shared = { bodyReplacement } satisfies Pick<LanguageSpec, 'bodyReplacement'>;
 
 export const typescript: LanguageSpec = {
   ...shared,
   id: 'typescript',
+  fence: 'ts',
   grammar: 'tree-sitter-typescript',
   extensions: ['.ts', '.mts', '.cts'],
 };
@@ -66,6 +61,7 @@ export const typescript: LanguageSpec = {
 export const tsx: LanguageSpec = {
   ...shared,
   id: 'tsx',
+  fence: 'tsx',
   grammar: 'tree-sitter-tsx',
   extensions: ['.tsx'],
 };
@@ -73,6 +69,7 @@ export const tsx: LanguageSpec = {
 export const javascript: LanguageSpec = {
   ...shared,
   id: 'javascript',
+  fence: 'js',
   // The JavaScript grammar handles JSX natively.
   grammar: 'tree-sitter-javascript',
   extensions: ['.js', '.mjs', '.cjs', '.jsx'],

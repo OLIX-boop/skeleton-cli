@@ -1,6 +1,6 @@
 import type { Node } from 'web-tree-sitter';
 
-export type LanguageId = 'typescript' | 'tsx' | 'javascript';
+export type LanguageId = 'typescript' | 'tsx' | 'javascript' | 'python' | 'go' | 'rust';
 
 /** A span of source text to be replaced in the skeleton output. */
 export interface BodyReplacement {
@@ -21,8 +21,11 @@ export interface LanguageSpec {
   /**
    * Decide whether `node` owns an implementation body that should be stripped.
    * Return the replacement, or `null` to leave the node alone and keep walking.
+   *
+   * `placeholder` is the human-readable marker text (e.g. `...`); the language wraps it
+   * in whatever syntax keeps the output valid (a block comment, `...`, etc.).
    */
   bodyReplacement(node: Node, placeholder: string): BodyReplacement | null;
-  /** Default placeholder text put inside a stripped body. */
-  defaultPlaceholder: string;
+  /** Language name used for Markdown code fences. */
+  fence: string;
 }

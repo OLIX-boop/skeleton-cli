@@ -1,5 +1,8 @@
 import { extname } from 'node:path';
 import type { LanguageId, LanguageSpec } from './types.js';
+import { go } from './go.js';
+import { python } from './python.js';
+import { rust } from './rust.js';
 import { javascript, tsx, typescript } from './typescript.js';
 
 export type { BodyReplacement, LanguageId, LanguageSpec } from './types.js';
@@ -8,6 +11,9 @@ export const LANGUAGES: Readonly<Record<LanguageId, LanguageSpec>> = {
   typescript,
   tsx,
   javascript,
+  python,
+  go,
+  rust,
 };
 
 const BY_EXTENSION = new Map<string, LanguageSpec>(
