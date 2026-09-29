@@ -56,7 +56,8 @@ async function cli(args: string[], cwd: string) {
   return { code, stdout: stdout.data, stderr: stderr.data };
 }
 
-describe.skipIf(!hasGit)('git integration', () => {
+// Spawning git is slow on Windows runners; allow each test more time.
+describe.skipIf(!hasGit)('git integration', { timeout: 30_000 }, () => {
   it('lists uncommitted, staged and untracked changes vs HEAD', async () => {
     const root = await repo();
     await writeFile(join(root, 'src/a.ts'), 'export function a() {\n  return 10;\n}\n');
