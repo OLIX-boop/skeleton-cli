@@ -1,0 +1,24 @@
+import type { PackResult } from '../pack.js';
+
+export type OutputFormat = 'markdown' | 'json' | 'xml';
+
+export const OUTPUT_FORMATS: readonly OutputFormat[] = ['markdown', 'json', 'xml'];
+
+export const OUTPUT_EXTENSIONS: Record<OutputFormat, string> = { markdown: 'md', json: 'json', xml: 'xml' };
+
+export interface RenderOptions {
+  /** Project name shown in the header (defaults to the root directory name). */
+  projectName: string;
+  /** Include the directory tree. Default true. */
+  tree?: boolean;
+  /** Free-form instructions placed at the top of the document (e.g. the task for the LLM). */
+  instructions?: string;
+  /** Focus targets, shown in the header. */
+  focus?: readonly string[];
+  /** Tool version, shown in the header. */
+  version?: string;
+}
+
+export interface Renderer {
+  (result: PackResult, options: RenderOptions): string;
+}

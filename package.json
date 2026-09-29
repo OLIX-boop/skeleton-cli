@@ -16,7 +16,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "start": "node dist/cli.js",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "llm",
@@ -29,7 +31,9 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "commander": "^15.0.0",
     "ignore": "^7.0.10",
+    "tiktoken": "^1.0.22",
     "tree-sitter-wasms": "^0.1.13",
     "web-tree-sitter": "~0.25.10"
   },
@@ -40,5 +44,8 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.71.0",
     "vitest": "^5.0.2"
+  },
+  "bin": {
+    "astpack": "dist/cli.js"
   }
 }
