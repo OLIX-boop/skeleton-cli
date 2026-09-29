@@ -153,7 +153,8 @@ describe('walk', () => {
     expect(paths(await walk(root, { maxFileSize: 0 }))).toContain('big.txt');
   });
 
-  it('skips symlinks by default and follows them safely when asked', async () => {
+  // Creating symlinks on Windows needs elevated privileges.
+  it.skipIf(process.platform === 'win32')('skips symlinks by default and follows them safely when asked', async () => {
     const root = await tree({ 'real/a.ts': '' });
     await makeSymlink(root, 'real', 'link');
     await makeSymlink(root, '.', 'real/loop');
