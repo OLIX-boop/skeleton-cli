@@ -49,12 +49,19 @@ jobs:
       - run: npm ci
       - run: npm test
       - name: Build and smoke-test the CLI
+        env:
+          ASTPACK_REQUIRE_VENDORED: '1'
         run: |
           npm run build
           node dist/cli.js --version
           node dist/cli.js . --stdout -q > packed.md
-          node -e "const s=require('fs').readFileSync('packed.md','utf8'); if(!s.includes('## Files')) process.exit(1)"
+          node -e "const s=require('fs').readFileSync('packed.md','utf8'); if(!s.includes('## Files') || !s.includes('{ /* ... */ }')) process.exit(1)"
         shell: bash
-      - name: Check the published package contents
+      - name: Install the packed tarball and run it
         if: matrix.os == 'ubuntu-latest' && matrix.node == 22
-        run: npm pack --dry-run
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP"
+          mkdir "$RUNNER_TEMP/install" && cd "$RUNNER_TEMP/install"
+          npm init -y > /dev/null
+          npm install "$RUNNER_TEMP"/astpack-*.tgz
+          ./node_modules/.bin/astpack "$GITHUB_WORKSPACE/src" --stdout -q | grep -q '{ /\* ... \*/ }'

@@ -8,13 +8,14 @@
   "files": [
     "dist",
     "!dist/**/*.map",
+    "grammars",
     "schema.json"
   ],
   "engines": {
     "node": ">=22.12.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node scripts/vendor-grammars.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
@@ -37,7 +38,6 @@
     "commander": "^15.0.0",
     "ignore": "^7.0.10",
     "tiktoken": "^1.0.22",
-    "tree-sitter-wasms": "^0.1.13",
     "web-tree-sitter": "~0.25.10"
   },
   "devDependencies": {
@@ -45,6 +45,7 @@
     "@types/node": "^22.20.4",
     "eslint": "^9.39.5",
     "globals": "^17.12.0",
+    "tree-sitter-wasms": "^0.1.13",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.71.0",
     "vitest": "^5.0.2"
