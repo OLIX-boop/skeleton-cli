@@ -60,6 +60,17 @@ describe('MCP server', () => {
     expect(res.structuredContent).toMatchObject({ files: 3 });
   });
 
+  it('focuses files by query and orders them', async () => {
+    const { root, server } = await setup();
+    const res = await tool(server, 'pack_codebase', { path: root, query: 'multiply number', queryLimit: 1, order: 'size' });
+    const text = res.content[0]!.text;
+    expect(text).toContain('return x * 2;');
+    // Smallest first: the README comes before the sources.
+    expect(text.indexOf('`README.md`')).toBeLessThan(text.indexOf('`src/a.ts`'));
+    const bad = await call(server, 'tools/call', { name: 'pack_codebase', arguments: { path: root, order: 'random' } });
+    expect(JSON.stringify(bad)).toMatch(/order/);
+  });
+
   it('supports xml format and token budgets', async () => {
     const { server } = await setup();
     const res = await tool(server, 'pack_codebase', { path: '.', format: 'xml', maxTokens: 100_000 });

@@ -516,7 +516,7 @@ pack code themselves:
 
 | Tool | What it does |
 | --- | --- |
-| `pack_codebase` | The packed document for a directory: `focus`, `changed`, `mode` (`skeleton`/`full`/`outline`), `comments`, `include`, `ignore`, `format`, `maxTokens`, `deps`. |
+| `pack_codebase` | The packed document for a directory: `focus`, `changed`, `query` / `queryLimit`, `related`, `mode` (`skeleton`/`full`/`outline`), `comments`, `include`, `ignore`, `order`, `format`, `maxTokens`, `deps`. |
 | `estimate_tokens` | Packed vs raw token counts and the largest files, without the document, to pick focus and budgets. |
 | `skeleton_file` | One file's skeleton: a cheap way to read its API. |
 

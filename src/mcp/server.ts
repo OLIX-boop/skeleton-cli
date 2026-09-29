@@ -7,6 +7,7 @@ import { transformFile } from '../engine/transform.js';
 import { changedFiles } from '../git.js';
 import type { CommentMode } from '../languages/types.js';
 import { render, type OutputFormat } from '../output/index.js';
+import { FILE_ORDERS, orderFiles, type FileOrder } from '../order.js';
 import { pack, readText } from '../pack.js';
 import { computeStats, DEFAULT_MODELS, prefetchStats, TokenCounter } from '../tokens/index.js';
 import { VERSION } from '../version.js';
@@ -235,6 +236,12 @@ export class AstpackMcpServer {
         type: 'string',
         description: 'Describe the task in words (e.g. "invoice pdf export"); the most relevant files are included in full.',
       },
+      queryLimit: { type: 'number', description: 'Maximum number of files `query` includes in full (default 5).' },
+      order: {
+        type: 'string',
+        enum: ['path', 'stable', 'size'],
+        description: 'File order: path (default), stable (least recently changed first, keeps prompt-cache prefixes) or size.',
+      },
       related: { type: 'number', description: 'Also include in full the files within this many import hops of a focused file (e.g. 1).' },
       mode: {
         type: 'string',
@@ -256,6 +263,8 @@ export class AstpackMcpServer {
       const ignore = strList(args, 'ignore');
       const changed = str(args, 'changed');
       const query = str(args, 'query');
+      const queryLimit = num(args, 'queryLimit');
+      const order = oneOf<FileOrder>(args, 'order', FILE_ORDERS) ?? 'path';
       const depth = num(args, 'related');
       const related = depth === undefined ? undefined : Math.floor(depth);
       const root = await this.resolvePath(str(args, 'path', true)!);
@@ -263,8 +272,8 @@ export class AstpackMcpServer {
       if (!info?.isDirectory()) throw new ToolError(`${root} is not a directory`);
       const focus = focusArgs.map((f) => (/[*?[\]{}]/.test(f) ? f : resolve(root, f)));
       if (changed) focus.push(...(await changedFiles(root, changed)));
-      const result = await pack(root, { mode, focus, related, query, cwd: root, comments, include, ignore });
-      return { root, result, comments };
+      const packed = await pack(root, { mode, focus, related, query, queryLimit: queryLimit && Math.floor(queryLimit), cwd: root, comments, include, ignore });
+      return { root, result: await orderFiles(packed, order), comments };
     };
 
     return [
