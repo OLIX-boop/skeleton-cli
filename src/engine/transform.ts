@@ -1,4 +1,4 @@
-import { embeddedForPath, languageForPath, LANGUAGES, type EmbeddedSpec } from '../languages/index.js';
+import { embeddedForPath, languageForPath, LANGUAGES, registeredExtensions, type EmbeddedSpec } from '../languages/index.js';
 import { createHash } from 'node:crypto';
 import type { CommentMode } from '../languages/types.js';
 import { cacheStore } from '../cache/store.js';
@@ -215,7 +215,9 @@ export async function transformFile(filePath: string, content: string, options: 
   const pool = activePool();
   let result: TransformedFile;
   try {
-    result = pool ? await pool.run<TransformedFile>({ type: 'transform', path: filePath, content, options }) : await computeTransform(filePath, content, options);
+    result = pool
+      ? await pool.run<TransformedFile>({ type: 'transform', path: filePath, content, options, extensions: registeredExtensions() })
+      : await computeTransform(filePath, content, options);
   } catch (error) {
     // A worker that died (e.g. out of memory) shouldn't fail the pack: retry here.
     if (!pool || !(error instanceof WorkerFailure)) throw error;

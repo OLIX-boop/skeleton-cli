@@ -2,6 +2,7 @@ import { transformFile, type FallbackLimits } from './engine/transform.js';
 import type { CommentMode } from './languages/types.js';
 import { fenceForStrategy, type PackedFile, type PackResult } from './pack.js';
 import { TokenCounter, type EncodingName } from './tokens/index.js';
+import { TEST_PATH } from './util/paths.js';
 
 /** One rung of the compression ladder. */
 interface Level {
@@ -45,7 +46,6 @@ export interface BudgetReport {
   focusTokens: number;
 }
 
-const TEST_PATH = /(^|\/)(tests?|__tests__|spec|specs|e2e|fixtures?|__mocks__|testdata)\/|[._-](test|spec)\.[^/]+$|_test\.go$|^test_[^/]*\.py$|\/test_[^/]*\.py$/;
 const DOC_PATH = /\.(md|mdx|rst|txt|adoc)$|(^|\/)(docs?|examples?)\//i;
 
 /**

@@ -42,6 +42,7 @@ describe('search', () => {
     ];
     expect(topHits(hits, 5).map((h) => h.path)).toEqual(['a', 'b']);
     expect(topHits(hits, 1).map((h) => h.path)).toEqual(['a']);
+    expect(topHits(hits, -1)).toEqual([]);
   });
 });
 

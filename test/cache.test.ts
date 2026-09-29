@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -35,6 +35,27 @@ describe('FileCacheStore', () => {
     expect(third.get('tokens', 'a')).toBe(1);
     expect(third.get('tokens', 'b')).toBeUndefined();
     expect(new FileCacheStore('/other', dir).get('tokens', 'a')).toBeUndefined();
+  });
+
+  it('skips unchanged saves and keeps only what each run (or watch rebuild) used', async () => {
+    const dir = await tempDir();
+    const store = new FileCacheStore('/project', dir);
+    store.set('tokens', 'a', 1);
+    store.set('tokens', 'b', 2);
+    store.save();
+    const { mtimeMs } = await stat(store.path);
+    const again = new FileCacheStore('/project', dir);
+    again.get('tokens', 'a');
+    again.get('tokens', 'b');
+    await new Promise((r) => setTimeout(r, 20));
+    again.save();
+    expect((await stat(again.path)).mtimeMs).toBe(mtimeMs);
+    // Next "rebuild" only uses a: b is dropped.
+    again.get('tokens', 'a');
+    again.save();
+    const reopened = new FileCacheStore('/project', dir);
+    expect(reopened.get('tokens', 'a')).toBe(1);
+    expect(reopened.get('tokens', 'b')).toBeUndefined();
   });
 
   it('ignores corrupt files and reports and clears the cache', async () => {

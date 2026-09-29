@@ -121,5 +121,5 @@ export function search(documents: readonly SearchDocument[], query: string): Sea
  */
 export function topHits(hits: readonly SearchHit[], limit: number, cutoff = 0.25): SearchHit[] {
   const best = hits[0]?.score ?? 0;
-  return hits.slice(0, limit).filter((h) => h.score >= best * cutoff);
+  return hits.slice(0, Math.max(0, limit)).filter((h) => h.score >= best * cutoff);
 }

@@ -2,13 +2,12 @@ import { existsSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
-import { registeredExtensions } from '../languages/index.js';
 import type { EncodingName } from '../tokens/pricing.js';
 import type { TransformOptions } from '../engine/transform.js';
 
 /** Work a pool thread can do. */
 export type Task =
-  | { type: 'transform'; path: string; content: string; options: TransformOptions }
+  | { type: 'transform'; path: string; content: string; options: TransformOptions; extensions: Record<string, string> }
   | { type: 'count'; encoding: EncodingName; texts: string[] };
 
 interface Pending {
@@ -34,9 +33,8 @@ export class WorkerPool {
   private nextId = 0;
 
   constructor(size: number, script: string) {
-    const workerData = { extensions: registeredExtensions() };
     this.slots = Array.from({ length: size }, () => {
-      const worker = new Worker(script, { workerData });
+      const worker = new Worker(script);
       const slot: Slot = { worker, inFlight: new Map(), dead: false };
       worker.on('message', (msg: { id: number; result?: unknown; error?: string }) => {
         const pending = slot.inFlight.get(msg.id);
@@ -100,7 +98,9 @@ export function workerCount(env: NodeJS.ProcessEnv = process.env): number {
     const n = Number(configured);
     return Number.isInteger(n) && n > 0 ? Math.min(n, 64) : 0;
   }
-  return Math.min(6, availableParallelism() - 1);
+  const auto = Math.min(6, availableParallelism() - 1);
+  // A single automatic worker would only add overhead next to the main thread.
+  return auto >= 2 ? auto : 0;
 }
 
 /**
@@ -113,7 +113,7 @@ export function enablePool(workItems: number): boolean {
   if (workItems < 200) return false;
   const size = workerCount();
   const script = workerScript();
-  if (size < 2 || !script) return false;
+  if (size < 1 || !script) return false;
   pool ??= new WorkerPool(size, script);
   enabled = true;
   return true;

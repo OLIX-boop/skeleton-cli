@@ -130,6 +130,12 @@ describe('cli', () => {
     }
   });
 
+  it('warns about a --focus that matched nothing, even when --query and --related add files', async () => {
+    const root = await project();
+    const { stderr } = await cli(['--stdout', '--no-color', '--focus', 'src/typo.ts', '--query', 'admin login', '--related'], root);
+    expect(stderr).toContain('no files matched --focus src/typo.ts');
+  });
+
   it('supports --full', async () => {
     const root = await project();
     const { stdout } = await cli(['--stdout', '-q', '--full'], root);

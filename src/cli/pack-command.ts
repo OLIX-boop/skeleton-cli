@@ -327,7 +327,8 @@ export async function packCommand(directory: string, command: Command, io: CliIO
       if (showProgress) io.stderr.write('\r\u001b[K');
       for (const target of result.focusOutsideRoot) warn(io, errColors, `--focus ${target} is outside ${root}`);
       if (result.files.length === 0) warn(io, errColors, `no files included from ${root} (check your ignore/include rules)`);
-      if (opts.focus.length && !result.files.some((f) => f.focused && !f.matched)) {
+      // Only the --focus targets themselves count, not query matches or their neighbours.
+      if (opts.focus.length && !result.files.some((f) => f.focused && !f.matched && !f.related)) {
         warn(io, errColors, `no files matched --focus ${opts.focus.join(', ')}`);
       }
 
@@ -344,7 +345,7 @@ export async function packCommand(directory: string, command: Command, io: CliIO
         version: VERSION,
         diff: diffRef ? { ref: diffRef, text: maybeRedact(await diffText(root, diffRef), opts.redact) } : undefined,
         diffLast: opts.order === 'stable',
-        dependencies: opts.deps ? dependencyGraph(result) : undefined,
+        dependencies: opts.deps ? (result.dependencies ?? dependencyGraph(result)) : undefined,
       };
 
       let document: string | undefined;

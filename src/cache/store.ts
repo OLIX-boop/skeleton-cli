@@ -2,6 +2,7 @@ import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, wri
 import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import { VERSION } from '../version.js';
@@ -57,7 +58,13 @@ export function fingerprint(): string {
   } catch {
     // Grammars missing: parsing will fail loudly elsewhere.
   }
-  for (const dir of ['engine', 'languages', 'security']) {
+  try {
+    // Token counts depend on the tokenizer's data.
+    hash.update(readFileSync(createRequire(import.meta.url).resolve('gpt-tokenizer/package.json')));
+  } catch {
+    // Not resolvable (bundled build): the version stands in for it.
+  }
+  for (const dir of ['engine', 'languages', 'security', 'tokens']) {
     try {
       for (const name of readdirSync(join(here, dir)).sort()) hash.update(`${name}:${statSync(join(here, dir, name)).mtimeMs}`);
     } catch {
@@ -73,12 +80,24 @@ interface CacheFile {
   entries: Entries;
 }
 
-/** A cache file for one project root, loaded eagerly and written back with `save()`. */
+function entryCount(entries: Entries): number {
+  let n = 0;
+  for (const ns of Object.values(entries)) n += Object.keys(ns).length;
+  return n;
+}
+
+/**
+ * A cache file for one project root, loaded eagerly and written back with `save()`. Each
+ * save keeps only the entries used since the previous save (one run, or one `--watch`
+ * rebuild), so the file tracks the latest pack instead of growing.
+ */
 export class FileCacheStore implements CacheStore {
-  private readonly loaded: Entries;
-  /** Entries read or written this session: the ones `save()` keeps. */
-  private readonly used: Entries = {};
-  private dirty = false;
+  /** Entries from the file, or from the run before the last save. */
+  private loaded: Entries;
+  /** Entries read or written since the last save: the ones `save()` keeps. */
+  private used: Entries = {};
+  /** Whether `used` holds an entry `loaded` lacks (or with another value). */
+  private added = false;
   readonly path: string;
 
   constructor(root: string, dir = defaultCacheDir()) {
@@ -98,33 +117,34 @@ export class FileCacheStore implements CacheStore {
   }
 
   get<T>(namespace: string, key: string): T | undefined {
-    const value = this.used[namespace]?.[key] ?? this.loaded[namespace]?.[key];
-    if (value === undefined) return undefined;
-    const used = (this.used[namespace] ??= {});
-    if (!(key in used)) {
-      used[key] = value;
-      // Dropping entries the run didn't touch is a change worth saving.
-      this.dirty = true;
-    }
-    return value as T;
+    const used = this.used[namespace]?.[key];
+    if (used !== undefined) return used as T;
+    const value = this.loaded[namespace]?.[key];
+    if (value !== undefined) (this.used[namespace] ??= {})[key] = value;
+    return value as T | undefined;
   }
 
   set(namespace: string, key: string, value: unknown): void {
     (this.used[namespace] ??= {})[key] = value;
-    this.dirty = true;
+    if (this.loaded[namespace]?.[key] !== value) this.added = true;
   }
 
-  /** Write the entries used this session. Failures are ignored: the cache is an optimisation. */
+  /** Write the entries used since the last save. Failures are ignored: the cache is an optimisation. */
   save(): void {
-    if (!this.dirty && Object.keys(this.used).length === Object.keys(this.loaded).length) return;
+    // Nothing new and nothing to drop: the file already holds exactly these entries.
+    const unchanged = !this.added && entryCount(this.used) === entryCount(this.loaded);
     try {
-      const dir = join(this.path, '..');
-      mkdirSync(dir, { recursive: true });
-      const tmp = `${this.path}.${process.pid}.tmp`;
-      writeFileSync(tmp, gzipSync(JSON.stringify({ version: fingerprint(), entries: this.used } satisfies CacheFile), { level: 1 }));
-      renameSync(tmp, this.path);
-      this.dirty = false;
-      pruneStale(dir);
+      if (!unchanged) {
+        const dir = join(this.path, '..');
+        mkdirSync(dir, { recursive: true });
+        const tmp = `${this.path}.${process.pid}.tmp`;
+        writeFileSync(tmp, gzipSync(JSON.stringify({ version: fingerprint(), entries: this.used } satisfies CacheFile), { level: 1 }));
+        renameSync(tmp, this.path);
+        pruneStale(dir);
+      }
+      this.loaded = this.used;
+      this.used = {};
+      this.added = false;
     } catch {
       // Read-only home, full disk, …: run without persisting.
     }

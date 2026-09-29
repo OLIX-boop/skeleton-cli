@@ -3,9 +3,10 @@ import type { CommentMode } from './languages/types.js';
 import { transformFile, type FallbackLimits, type FileMode, type Strategy } from './engine/transform.js';
 import type { RedactionHit } from './security/secrets.js';
 import { embeddedForPath, languageForPath } from './languages/index.js';
-import { dependencyGraph, relatedFiles } from './deps.js';
+import { dependencyGraph, relatedFiles, type DependencyGraph } from './deps.js';
 import { search, topHits, type SearchHit } from './search.js';
 import { enablePool } from './parallel/pool.js';
+import { TEST_PATH } from './util/paths.js';
 import { mapLimit } from './util/pool.js';
 import { FocusMatcher, walk, type SkippedEntry, type WalkOptions } from './walker/index.js';
 
@@ -83,6 +84,8 @@ export interface PackResult {
   focusOutsideRoot: string[];
   /** Files `query` focused, best first (absent without a query). */
   queryHits?: SearchHit[];
+  /** The import graph, when `related` needed it (reused by `--deps`). */
+  dependencies?: DependencyGraph;
 }
 
 /** Code-fence hints for common non-AST file types. */
@@ -124,8 +127,6 @@ export async function readText(absPath: string): Promise<string> {
   return text.includes('\r\n') ? text.replace(/\r\n/g, '\n') : text;
 }
 
-const TEST_PATH = /(^|\/)(tests?|__tests__|spec)\/|[._-](test|spec)\.[^/]+$|(^|\/)test_[^/]+$/;
-
 /** Discover, filter and transform every file under `root`. */
 export async function pack(root: string, options: PackOptions = {}): Promise<PackResult> {
   const mode = options.mode ?? 'skeleton';
@@ -144,18 +145,20 @@ export async function pack(root: string, options: PackOptions = {}): Promise<Pac
       text: originals[i]!,
       weight: !(languageForPath(e.path) || embeddedForPath(e.path)) ? 0.4 : TEST_PATH.test(e.path) ? 0.7 : 1,
     }));
-    queryHits = topHits(search(documents, options.query), options.queryLimit ?? 5);
+    queryHits = topHits(search(documents, options.query), Math.max(1, Math.floor(options.queryLimit ?? 5)));
   }
   const matched = new Set(queryHits?.map((h) => h.path).filter((p) => !targets.has(p)));
   for (const path of matched) targets.add(path);
   let related = new Set<string>();
+  let dependencies: DependencyGraph | undefined;
   if ((options.related ?? 0) > 0 && targets.size) {
     const sources = walked.files.map((e, i) => ({
       path: e.path,
       language: (languageForPath(e.path) ?? embeddedForPath(e.path))?.id,
       original: originals[i]!,
     }));
-    related = relatedFiles(dependencyGraph({ files: sources }), targets, options.related!);
+    dependencies = dependencyGraph({ files: sources });
+    related = relatedFiles(dependencies, targets, options.related!);
   }
 
   if (options.workers !== false) enablePool(walked.files.length);
@@ -197,5 +200,6 @@ export async function pack(root: string, options: PackOptions = {}): Promise<Pac
     skipped: walked.skipped,
     focusOutsideRoot: focus.outsideRoot(),
     ...(queryHits ? { queryHits } : {}),
+    ...(dependencies ? { dependencies } : {}),
   };
 }

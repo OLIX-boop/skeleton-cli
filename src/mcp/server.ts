@@ -299,7 +299,7 @@ export class AstpackMcpServer {
           const maxTokens = num(args, 'maxTokens');
           const deps = args.deps === true;
           const { root, result: packed, comments } = await runPack(args);
-          const renderOptions = { projectName: basename(root), dependencies: deps ? dependencyGraph(packed) : undefined };
+          const renderOptions = { projectName: basename(root), dependencies: deps ? (packed.dependencies ?? dependencyGraph(packed)) : undefined };
           let result = packed;
           let document: string;
           if (maxTokens) {

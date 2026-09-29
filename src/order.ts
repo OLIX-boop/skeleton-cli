@@ -1,3 +1,4 @@
+import { realpath } from 'node:fs/promises';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { changedFiles, git, repoRoot } from './git.js';
 import type { PackedFile, PackResult } from './pack.js';
@@ -24,15 +25,18 @@ const HISTORY_COMMITS = 5000;
  */
 export async function lastChanged(cwd: string): Promise<Map<string, number>> {
   const root = await repoRoot(cwd);
-  const log = await git(['-c', 'core.quotePath=false', 'log', `-n${HISTORY_COMMITS}`, '--no-renames', '--name-only', '--format=@%ct', 'HEAD', '--'], root, 256 * 1024 * 1024);
+  // Commit lines start with a NUL, which no path can contain.
+  const log = await git(['-c', 'core.quotePath=false', 'log', `-n${HISTORY_COMMITS}`, '--no-renames', '--name-only', '--format=%x00%ct', 'HEAD', '--'], root, 256 * 1024 * 1024);
   const times = new Map<string, number>();
+  // git reports paths from the real (symlink-resolved) top level.
+  const realCwd = await realpath(cwd);
   const toCwd = (repoPath: string) => {
-    const rel = relative(cwd, resolve(root, repoPath));
+    const rel = relative(realCwd, resolve(root, repoPath));
     return rel.startsWith('..') || isAbsolute(rel) ? undefined : toPosix(rel);
   };
   let time = 0;
   for (const line of log.split('\n')) {
-    if (line.startsWith('@')) time = Number(line.slice(1));
+    if (line.startsWith('\0')) time = Number(line.slice(1)) || 0;
     else if (line) {
       const path = toCwd(line);
       // Newest commits come first: keep the first time seen.

@@ -15,6 +15,7 @@ describe('workerCount', () => {
   it('honours ASTPACK_WORKERS and otherwise leaves a core free', () => {
     expect(workerCount({ ASTPACK_WORKERS: '0' })).toBe(0);
     expect(workerCount({ ASTPACK_WORKERS: '3' })).toBe(3);
+    expect(workerCount({ ASTPACK_WORKERS: '1' })).toBe(1);
     expect(workerCount({ ASTPACK_WORKERS: 'many' })).toBe(0);
     expect(workerCount({})).toBeLessThanOrEqual(6);
   });
@@ -34,6 +35,9 @@ describe.skipIf(!built)('parallel packing (built CLI)', { timeout: 60_000 }, () 
       if (i % 20 === 0) files[`py/p${i}.py`] = `def p${i}(x):\n    """Doc."""\n    return x + ${i}\n`;
     }
     files['README.md'] = '# Demo\n';
+    // Mapped by the config file: workers must see the mapping too.
+    files['lib/legacy.inc'] = '<?php\nfunction legacy($x) {\n    return $x * 2;\n}\n';
+    files['astpack.config.json'] = JSON.stringify({ extensions: { '.inc': 'php' } });
     const t = await makeTree(files);
     cleanup = t.cleanup;
     const pack = async (workers: string) => {
@@ -44,5 +48,8 @@ describe.skipIf(!built)('parallel packing (built CLI)', { timeout: 60_000 }, () 
     const [sequential, parallel] = await Promise.all([pack('0'), pack('2')]);
     expect(sequential).toContain('export function m7(x: number): number');
     expect(parallel).toBe(sequential);
+    // Parsed as PHP (the budget may outline it), not included as unsupported text.
+    expect(parallel).toMatch(/### `lib\/legacy\.inc`[^\n]*\n\n```(php|text)\n(<\?php\n)?function legacy\(\$x\)/);
+    expect(parallel).not.toContain('return $x * 2;');
   });
 });

@@ -1,10 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { writeFile } from 'node:fs/promises';
+import { mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Writable } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
 import { run } from '../src/cli/program.js';
 import { changedFiles, cloneRemote, diffText, parseRemote } from '../src/git.js';
+import { lastChanged } from '../src/order.js';
 import { makeTree } from './fixtures.js';
 
 const cleanups: (() => Promise<void>)[] = [];
@@ -77,6 +78,26 @@ describe.skipIf(!hasGit)('--order stable', { timeout: 30_000 }, () => {
     expect(order(stdout)).toEqual(['src/c.ts', 'src/a.ts', 'src/b.ts']);
     expect(stdout.indexOf('## Git diff')).toBeGreaterThan(stdout.indexOf('### `src/b.ts`'));
     expect(order((await cli(['--stdout', '-q', '--no-tree'], root)).stdout)).toEqual(['src/a.ts', 'src/b.ts', 'src/c.ts']);
+  });
+
+  it('handles paths starting with @ and projects reached through a symlink', async () => {
+    const root = await repo();
+    await mkdir(join(root, '@scope'));
+    await writeFile(join(root, '@scope/pkg.ts'), 'export const p = 1;\n');
+    g(root, 'add', '.');
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', 'commit', '-qm', 'scope'], {
+      cwd: root,
+      env: { ...process.env, GIT_AUTHOR_DATE: '2040-01-01T00:00:00Z', GIT_COMMITTER_DATE: '2040-01-01T00:00:00Z' },
+    });
+    const times = await lastChanged(root);
+    expect(times.get('@scope/pkg.ts')).toBe(Date.parse('2040-01-01T00:00:00Z') / 1000);
+    expect(Number.isFinite(times.get('src/a.ts'))).toBe(true);
+    if (process.platform !== 'win32') {
+      const link = `${root}-link`;
+      await symlink(root, link);
+      cleanups.push(() => rm(link, { force: true }));
+      expect((await lastChanged(link)).get('@scope/pkg.ts')).toBe(times.get('@scope/pkg.ts'));
+    }
   });
 
   it('keeps path order outside a git repository', async () => {
