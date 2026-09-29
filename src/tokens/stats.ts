@@ -37,6 +37,7 @@ export interface PackStats {
   skipped: Partial<Record<SkipReason, number>>;
   byStrategy: Record<string, number>;
   strippedBodies: number;
+  strippedComments: number;
   parseErrorFiles: string[];
   outputChars: number;
   outputBytes: number;
@@ -98,6 +99,7 @@ export function computeStats(result: PackResult, output: string, options: StatsO
       skipped,
       byStrategy,
       strippedBodies: result.files.reduce((n, f) => n + f.strippedBodies, 0),
+      strippedComments: result.files.reduce((n, f) => n + f.strippedComments, 0),
       parseErrorFiles: result.files.filter((f) => f.parseErrors).map((f) => f.path),
       outputChars: output.length,
       outputBytes: Buffer.byteLength(output),

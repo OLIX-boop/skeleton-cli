@@ -126,6 +126,16 @@ describe('cli', () => {
     expect(stdout).toContain('## Instructions\n\nFind the auth bug.');
   });
 
+  it('strips comments with --comments none but never in focused files', async () => {
+    const root = await project();
+    const { writeFile: wf } = await import('node:fs/promises');
+    await wf(join(root, 'src/auth/login.ts'), '// auth\nexport function login(u: string): boolean {\n  return u === "admin"; // check\n}\n');
+    await wf(join(root, 'src/util.ts'), '// helper\nexport const x = 1; // one\n');
+    const { stdout } = await cli(['--stdout', '-q', '--comments', 'none', '--focus', 'src/auth'], root);
+    expect(stdout).toContain('return u === "admin"; // check');
+    expect(stdout).toContain('```ts\nexport const x = 1;\n```');
+  });
+
   it('prices selected models', async () => {
     const root = await project();
     const { stderr } = await cli(['--stdout', '--no-color', '--models', 'claude-opus-5.5,gpt-4o-mini'], root);

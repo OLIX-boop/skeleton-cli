@@ -42,6 +42,7 @@ export function renderSummary(stats: PackStats, options: SummaryOptions): string
     ['Skipped', `${formatNumber(skippedTotal)}${skippedDetail ? c.dim(`  (${skippedDetail})`) : ''}`],
   ];
   if (stats.strippedBodies) rows.push(['Bodies stripped', formatNumber(stats.strippedBodies)]);
+  if (stats.strippedComments) rows.push(['Comments stripped', formatNumber(stats.strippedComments)]);
   rows.push(
     ['Output size', `${formatBytes(stats.outputBytes)}${c.dim(`  (${formatNumber(stats.outputChars)} chars)`)}`],
     ['Tokens (cl100k_base)', `${c.bold(formatNumber(cl.output))}${c.dim(`  of ${formatNumber(cl.baseline)} raw`)}`],

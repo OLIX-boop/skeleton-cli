@@ -10,6 +10,7 @@ import { makeColors, shouldColor } from './colors.js';
 import { parsePositiveInt, parseSize } from './format.js';
 import { renderSummary } from './summary.js';
 import { toPosix } from '../walker/rules.js';
+import type { CommentMode } from '../languages/types.js';
 
 export interface CliIO {
   stdout: NodeJS.WriteStream;
@@ -34,6 +35,7 @@ interface RawOptions {
   fallbackLines?: number;
   fallbackChars?: number;
   placeholder?: string;
+  comments: CommentMode;
   tree: boolean;
   instructions?: string;
   followSymlinks?: boolean;
@@ -81,6 +83,11 @@ export function buildProgram(): Command {
     .option('--fallback-lines <n>', 'max lines kept from unsupported files in skeleton mode', wrapParser(parsePositiveInt))
     .option('--fallback-chars <n>', 'max characters kept from unsupported files in skeleton mode', wrapParser(parsePositiveInt))
     .option('--placeholder <text>', 'marker text for stripped bodies (default "...")')
+    .addOption(
+      new Option('--comments <mode>', 'comments to keep outside focused files: all, docs (documentation only) or none')
+        .choices(['all', 'docs', 'none'])
+        .default('all'),
+    )
     .option('--no-tree', 'omit the directory tree')
     .option('--instructions <text>', 'instructions placed at the top of the document (prefix with @ to read a file)')
     .option('--follow-symlinks', 'follow symbolic links')
@@ -156,6 +163,7 @@ export async function run(argv: readonly string[], io: CliIO = { stdout: process
       focus: opts.focus,
       cwd: io.cwd,
       placeholder: opts.placeholder,
+      comments: opts.comments,
       fallback: {
         ...(opts.fallbackLines !== undefined ? { maxLines: opts.fallbackLines } : {}),
         ...(opts.fallbackChars !== undefined ? { maxChars: opts.fallbackChars } : {}),

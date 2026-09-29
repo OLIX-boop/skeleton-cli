@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import type { CommentMode } from './languages/types.js';
 import { transformFile, type FallbackLimits, type FileMode, type Strategy } from './engine/transform.js';
 import { mapLimit } from './util/pool.js';
 import { FocusMatcher, walk, type SkippedEntry, type WalkOptions } from './walker/index.js';
@@ -10,6 +11,8 @@ export interface PackOptions extends WalkOptions {
   focus?: readonly string[];
   /** Marker text for stripped bodies. */
   placeholder?: string;
+  /** Which comments to keep in non-focused files of supported languages (default `all`). */
+  comments?: CommentMode;
   /** Limits for unsupported files in skeleton mode. */
   fallback?: Partial<FallbackLimits>;
   /** Directory relative focus paths are resolved against. Defaults to `process.cwd()`. */
@@ -37,6 +40,7 @@ export interface PackedFile {
   /** Original file content (line endings normalized), used for savings analytics. */
   original: string;
   strippedBodies: number;
+  strippedComments: number;
   parseErrors: boolean;
 }
 
@@ -94,6 +98,7 @@ export async function pack(root: string, options: PackOptions = {}): Promise<Pac
     const result = await transformFile(entry.path, original, {
       mode: focused ? 'full' : mode,
       placeholder: options.placeholder,
+      comments: focused ? 'all' : options.comments,
       fallback: options.fallback,
     });
     options.onProgress?.(++done, walked.files.length, entry.path);
@@ -107,6 +112,7 @@ export async function pack(root: string, options: PackOptions = {}): Promise<Pac
       content: result.content,
       original,
       strippedBodies: result.strippedBodies,
+      strippedComments: result.strippedComments,
       parseErrors: result.parseErrors,
     };
   });

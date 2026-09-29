@@ -32,6 +32,15 @@ export interface BodyReplacement {
   end?: number;
 }
 
+/** How much commentary to keep: everything, documentation comments only, or nothing. */
+export type CommentMode = 'all' | 'docs' | 'none';
+
+/** Context passed to language rules. */
+export interface RuleContext {
+  placeholder: string;
+  comments: CommentMode;
+}
+
 export interface LanguageSpec {
   id: LanguageId;
   /** Grammar file name inside `tree-sitter-wasms/out`, without extension. */
@@ -45,12 +54,20 @@ export interface LanguageSpec {
    * `placeholder` is the human-readable marker text (e.g. `...`); the language wraps it
    * in whatever syntax keeps the output valid (a block comment, `...`, etc.).
    */
-  bodyReplacement(node: Node, placeholder: string): BodyReplacement | null;
+  bodyReplacement(node: Node, placeholder: string, context: RuleContext): BodyReplacement | null;
   /**
    * Node types `bodyReplacement` may act on. The walker only materializes nodes of these
    * types, which keeps large files fast.
    */
   candidates: readonly string[];
+  /**
+   * Language-specific documentation nodes that are not comments (e.g. Python docstrings).
+   * Returns the text to put in their place when documentation is stripped ('' to delete),
+   * or `undefined` if `node` is not documentation.
+   */
+  docReplacement?(node: Node): string | undefined;
+  /** Node types `docReplacement` may act on. */
+  docCandidates?: readonly string[];
   /** Language name used for Markdown code fences. */
   fence: string;
 }

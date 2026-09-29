@@ -1,5 +1,7 @@
 import type { Node } from 'web-tree-sitter';
 import { LANGUAGES, type LanguageId, type LanguageSpec } from '../languages/index.js';
+import type { CommentMode, RuleContext } from '../languages/types.js';
+import { COMMENT_TYPE, isDirective, isDocComment, removalSpan } from './comments.js';
 import { getParser } from './parser.js';
 
 export interface SkeletonOptions {
@@ -8,6 +10,10 @@ export interface SkeletonOptions {
    * syntax that keeps the output valid, e.g. `{ /* ... *\/ }` or `...`.
    */
   placeholder?: string;
+  /** Strip implementation bodies. Default true; false only applies `comments`. */
+  bodies?: boolean;
+  /** Which comments to keep: `all` (default), `docs` (documentation only) or `none`. */
+  comments?: CommentMode;
 }
 
 export interface SkeletonResult {
@@ -15,6 +21,8 @@ export interface SkeletonResult {
   code: string;
   /** Number of implementation bodies that were stripped. */
   strippedBodies: number;
+  /** Number of comments (and docstrings) that were removed. */
+  strippedComments: number;
   /** Whether the parser reported syntax errors (output is best-effort in that case). */
   hasErrors: boolean;
 }
@@ -27,30 +35,71 @@ interface Edit {
   text: string;
 }
 
-function collectEdits(source: string, root: Node, spec: LanguageSpec, placeholder: string): Edit[] {
+interface Collected {
+  edits: Edit[];
+  bodies: number;
+  comments: number;
+}
+
+function collectEdits(source: string, root: Node, spec: LanguageSpec, context: RuleContext, bodies: boolean): Collected {
   const edits: Edit[] = [];
+  let bodyCount = 0;
+  let commentCount = 0;
   const candidates = candidateSet(spec);
+  const docCandidates = context.comments === 'none' && spec.docCandidates ? new Set(spec.docCandidates) : undefined;
   const cursor = root.walk();
   // Span of the most recent replacement: nodes inside it are not visited. A pre-order walk
   // visits nodes in document order, so only the latest replacement can contain the cursor.
   let skipStart = -1;
   let skipEnd = -1;
+
+  const push = (start: number, end: number, text: string) => {
+    edits.push({ start, end, text });
+    skipStart = start;
+    skipEnd = end;
+  };
+
   try {
     for (;;) {
       let descend = true;
       const start = cursor.startIndex;
       const end = cursor.endIndex;
+      const type = cursor.nodeType;
       if (start >= skipStart && end <= skipEnd && end > start) {
         descend = false;
-      } else if (candidates.has(cursor.nodeType)) {
+      } else if (context.comments !== 'all' && COMMENT_TYPE.test(type)) {
+        descend = false;
         const node = cursor.currentNode;
-        const replacement = spec.bodyReplacement(node, placeholder);
+        const text = node.text;
+        const keep = isDirective(text) || (context.comments === 'docs' && isDocComment(node, source, candidates));
+        if (!keep) {
+          const span = removalSpan(source, start, end);
+          push(span.start, span.end, '');
+          commentCount++;
+        }
+      } else if (docCandidates?.has(type)) {
+        const node = cursor.currentNode;
+        const replacement = spec.docReplacement?.(node);
+        if (replacement !== undefined) {
+          descend = false;
+          if (replacement === '') {
+            const span = removalSpan(source, start, end);
+            push(span.start, span.end, '');
+          } else {
+            push(start, end, replacement);
+          }
+          commentCount++;
+        }
+      } else if (bodies && candidates.has(type)) {
+        const node = cursor.currentNode;
+        const replacement = spec.bodyReplacement(node, context.placeholder, context);
         if (replacement) {
           const editStart = replacement.start ?? replacement.node.startIndex;
           const editEnd = replacement.end ?? replacement.node.endIndex;
           // Already a placeholder (e.g. re-processing skeleton output): nothing to strip.
           if (source.slice(editStart, editEnd) !== replacement.text) {
             edits.push({ start: editStart, end: editEnd, text: replacement.text });
+            bodyCount++;
           }
           // Keep walking the rest of the node (e.g. default parameter values may contain
           // closures), but never descend into the replaced span.
@@ -61,7 +110,9 @@ function collectEdits(source: string, root: Node, spec: LanguageSpec, placeholde
       }
       if (descend && cursor.gotoFirstChild()) continue;
       while (!cursor.gotoNextSibling()) {
-        if (!cursor.gotoParent()) return edits.sort((a, b) => a.start - b.start);
+        if (!cursor.gotoParent()) {
+          return { edits: edits.sort((a, b) => a.start - b.start), bodies: bodyCount, comments: commentCount };
+        }
       }
     }
   } finally {
@@ -104,10 +155,12 @@ export async function skeletonize(
   const tree = parser.parse(source);
   if (!tree) throw new Error(`Failed to parse source as ${spec.id}`);
   try {
-    const edits = collectEdits(source, tree.rootNode, spec, options.placeholder ?? DEFAULT_PLACEHOLDER);
+    const context: RuleContext = { placeholder: options.placeholder ?? DEFAULT_PLACEHOLDER, comments: options.comments ?? 'all' };
+    const collected = collectEdits(source, tree.rootNode, spec, context, options.bodies ?? true);
     return {
-      code: applyEdits(source, edits),
-      strippedBodies: edits.length,
+      code: applyEdits(source, collected.edits),
+      strippedBodies: collected.bodies,
+      strippedComments: collected.comments,
       hasErrors: tree.rootNode.hasError,
     };
   } finally {

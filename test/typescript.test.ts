@@ -353,7 +353,7 @@ describe('options and diagnostics', () => {
   });
 
   it('returns empty output for empty input', async () => {
-    expect(await skeletonize('', 'typescript')).toEqual({ code: '', strippedBodies: 0, hasErrors: false });
+    expect(await skeletonize('', 'typescript')).toEqual({ code: '', strippedBodies: 0, strippedComments: 0, hasErrors: false });
   });
 });
 

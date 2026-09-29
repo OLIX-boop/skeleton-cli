@@ -1,4 +1,5 @@
 import { embeddedForPath, languageForPath, LANGUAGES, type EmbeddedSpec } from '../languages/index.js';
+import type { CommentMode } from '../languages/types.js';
 import { skeletonize } from './skeleton.js';
 
 export type FileMode = 'skeleton' | 'full';
@@ -24,6 +25,8 @@ export const DEFAULT_FALLBACK: FallbackLimits = { maxLines: 200, maxChars: 16_00
 export interface TransformOptions {
   mode: FileMode;
   placeholder?: string;
+  /** Which comments to keep in supported languages (default `all`). */
+  comments?: CommentMode;
   fallback?: Partial<FallbackLimits>;
 }
 
@@ -38,6 +41,7 @@ export interface TransformedFile {
   strategy: Strategy;
   language?: FileLanguage;
   strippedBodies: number;
+  strippedComments: number;
   /** The parser reported syntax errors; the skeleton is best-effort. */
   parseErrors: boolean;
 }
@@ -68,55 +72,63 @@ export function truncate(content: string, limits: FallbackLimits): { content: st
 }
 
 /** Skeletonize every script region of an embedded-language file, keeping markup verbatim. */
-async function transformEmbedded(content: string, spec: EmbeddedSpec, placeholder?: string) {
+async function transformEmbedded(content: string, spec: EmbeddedSpec, bodies: boolean, options: TransformOptions) {
   let out = '';
   let cursor = 0;
   let strippedBodies = 0;
+  let strippedComments = 0;
   let parseErrors = false;
   for (const region of spec.regions(content)) {
-    const result = await skeletonize(content.slice(region.start, region.end), LANGUAGES[region.language], { placeholder });
+    const result = await skeletonize(content.slice(region.start, region.end), LANGUAGES[region.language], {
+      placeholder: options.placeholder,
+      comments: options.comments,
+      bodies,
+    });
     out += content.slice(cursor, region.start) + result.code;
     cursor = region.end;
     strippedBodies += result.strippedBodies;
+    strippedComments += result.strippedComments;
     parseErrors ||= result.hasErrors;
   }
-  return { code: out + content.slice(cursor), strippedBodies, parseErrors };
+  return { content: out + content.slice(cursor), strippedBodies, strippedComments, parseErrors };
 }
 
 /** Produce the packaged content for a single file. */
-export async function transformFile(
-  filePath: string,
-  content: string,
-  options: TransformOptions,
-): Promise<TransformedFile> {
+export async function transformFile(filePath: string, content: string, options: TransformOptions): Promise<TransformedFile> {
+  const comments = options.comments ?? 'all';
+  const bodies = options.mode === 'skeleton';
+  const verbatim = (language?: FileLanguage): TransformedFile => ({
+    content,
+    strategy: 'full',
+    language,
+    strippedBodies: 0,
+    strippedComments: 0,
+    parseErrors: false,
+  });
+
   const embedded = embeddedForPath(filePath);
   if (embedded) {
     const language = { id: embedded.id, fence: embedded.fence };
-    if (options.mode === 'full') return { content, strategy: 'full', language, strippedBodies: 0, parseErrors: false };
-    const result = await transformEmbedded(content, embedded, options.placeholder);
-    return { content: result.code, strategy: 'skeleton', language, strippedBodies: result.strippedBodies, parseErrors: result.parseErrors };
+    if (!bodies && comments === 'all') return verbatim(language);
+    const result = await transformEmbedded(content, embedded, bodies, { ...options, comments });
+    return { ...result, strategy: bodies ? 'skeleton' : 'full', language };
   }
 
   const language = languageForPath(filePath);
-  if (options.mode === 'full') {
-    return { content, strategy: 'full', language, strippedBodies: 0, parseErrors: false };
-  }
   if (language) {
-    const result = await skeletonize(content, language, { placeholder: options.placeholder });
+    if (!bodies && comments === 'all') return verbatim(language);
+    const result = await skeletonize(content, language, { placeholder: options.placeholder, comments, bodies });
     return {
       content: result.code,
-      strategy: 'skeleton',
+      strategy: bodies ? 'skeleton' : 'full',
       language,
       strippedBodies: result.strippedBodies,
+      strippedComments: result.strippedComments,
       parseErrors: result.hasErrors,
     };
   }
-  const limits = { ...DEFAULT_FALLBACK, ...options.fallback };
-  const cut = truncate(content, limits);
-  return {
-    content: cut.content,
-    strategy: cut.truncated ? 'truncated' : 'full',
-    strippedBodies: 0,
-    parseErrors: false,
-  };
+
+  if (!bodies) return verbatim();
+  const cut = truncate(content, { ...DEFAULT_FALLBACK, ...options.fallback });
+  return { ...verbatim(), content: cut.content, strategy: cut.truncated ? 'truncated' : 'full' };
 }
