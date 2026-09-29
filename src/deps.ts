@@ -178,6 +178,44 @@ const cInclude: Resolver = {
   },
 };
 
+/** A path relative to the importing file (`./x.sol`, `util.zig`), else a unique suffix match. */
+function relativeOrUnique(spec: string, from: string, files: FileIndex): string | undefined {
+  const local = posix.normalize(posix.join(posix.dirname(from), spec));
+  if (files.has(local)) return local;
+  const matches = files.endingWith(spec.replace(/^(\.\.?\/)+/, ''));
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
+const objc: Resolver = {
+  extract: (s) => all(s, /^\s*#\s*(?:include|import)\s+"([^"]+)"/gm),
+  resolve: relativeOrUnique,
+};
+
+const zig: Resolver = {
+  // `@import("std")` names a package; only file imports are internal.
+  extract: (s) => all(s, /@import\s*\(\s*"([^"]+\.zig)"\s*\)/g),
+  resolve: relativeOrUnique,
+};
+
+const solidity: Resolver = {
+  extract: (s) => all(s, /^\s*import\s+(?:[^'";]*\bfrom\s+)?["']([^"']+)["']/gm),
+  resolve: relativeOrUnique,
+};
+
+const julia: Resolver = {
+  extract: (s) => all(s, /\binclude\s*\(\s*"([^"]+)"\s*\)/g),
+  resolve: relativeOrUnique,
+};
+
+const haskell: Resolver = {
+  extract: (s) => all(s, /^import\s+(?:qualified\s+)?([A-Z][\w.]*)/gm),
+  resolve(spec, _from, files) {
+    // `Data.Stack` lives in `Data/Stack.hs`, under some source root (src/, lib/, app/…).
+    const matches = files.endingWith(`${spec.replace(/\./g, '/')}.hs`);
+    return matches.length === 1 ? matches[0] : undefined;
+  },
+};
+
 const ruby: Resolver = {
   extract: (s) => all(s, /\brequire_relative\s*\(?\s*['"]([^'"]+)['"]/g),
   resolve(spec, from, files) {
@@ -226,6 +264,11 @@ const RESOLVERS: Record<string, Resolver> = {
   ruby,
   php,
   lua,
+  objc,
+  zig,
+  solidity,
+  julia,
+  haskell,
 };
 
 /** Build the internal import graph of a pack (edges to files outside the pack are dropped). */

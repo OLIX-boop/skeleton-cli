@@ -174,7 +174,7 @@ astpack summary
 
 ## Features
 
-- **Skeleton mode** — AST-accurate body stripping for **18 languages** plus Vue, Svelte and Astro single-file
+- **Skeleton mode** — AST-accurate body stripping for **25 languages** plus Vue, Svelte and Astro single-file
   components. The output stays syntactically valid and re-processing it is a no-op.
 - **Focus mode** — keep chosen files, directories or globs verbatim while the rest of the project is a skeleton.
 - **Git-aware** — `--changed main` focuses everything your branch touched; `--diff` embeds the diff itself;
@@ -565,6 +565,12 @@ Inputs: `path`, `args`, `format`, `output`, `version` (npm version, default `lat
 | Elixir | `.ex .exs` | `def`/`defp`/`defmacro` and ExUnit `test`/`setup` do-blocks | modules, attributes (`@doc`, `@spec`), `use`/`alias`, `describe` |
 | Bash | `.sh .bash` | function bodies → `{ : '...'; }` | top-level commands and variables |
 | Lua | `.lua` | `function` bodies (local, `M.f`, `M:f`, anonymous) → `--[[ ... ]]` | tables, locals, `require`s, module returns |
+| Zig | `.zig` | `fn` bodies, `test` and `comptime` blocks → a `// ...` block | structs, enums, unions, fields, constants; generic `fn … type` bodies (the returned struct) |
+| Solidity | `.sol` | functions, modifiers, constructors, `receive`/`fallback` | contracts, interfaces, libraries, state variables, events, errors, NatSpec |
+| Haskell | `.hs` | multi-line or long equations (guards and `where` included) → `= undefined` | type signatures, data types, classes, instances, imports, Haddock, one-liners |
+| OCaml | `.ml` / `.mli` | multi-line function, method and `let () =` bodies → `assert false` | modules, signatures, types, exceptions, `external`s, values; `.mli` kept whole |
+| Julia | `.jl` | `function … end` and `macro … end` bodies → `#= ... =#` | modules, structs, abstract types, one-line methods, docstrings |
+| Objective-C | `.m .mm` | methods, C functions, multi-line blocks | `@interface`/`@protocol`, properties, method declarations, imports |
 | Vue / Svelte / Astro | `.vue .svelte .astro` | functions inside `<script>` blocks and Astro frontmatter | templates, markup and styles |
 
 Every other text file is included verbatim (truncated past the fallback limits in skeleton mode) with a

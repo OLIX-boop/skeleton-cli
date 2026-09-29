@@ -126,9 +126,16 @@ export function outlineTree(source: string, root: Node, spec: LanguageSpec): { l
     const indent = '  '.repeat(depth);
     const isContainer = containers.has(node.type) || spec.outline?.isContainer?.(node);
     if (isContainer) {
-      const body = containerBody(node);
-      lines.push(indent + (body ? headerFrom(source, node, body.startIndex) : firstLine(source, node)));
+      const body = spec.outline?.body?.(node) ?? containerBody(node);
+      const header = !body ? firstLine(source, node) : body.id === node.id ? firstLine(source, node) : headerFrom(source, node, body.startIndex);
+      lines.push(indent + header);
       if (body) for (const child of body.namedChildren) if (child) visit(child, depth + 1);
+      return;
+    }
+    // Language-specific lines win over the generic function rule (Haskell equations).
+    const label = spec.outline?.label?.(node, depth, source);
+    if (label !== undefined) {
+      if (label) lines.push(indent + tidy(label));
       return;
     }
     if (functions.has(node.type)) {
@@ -139,11 +146,6 @@ export function outlineTree(source: string, root: Node, spec: LanguageSpec): { l
         lines.push(indent + headerFrom(source, headerNode, end));
         return; // nested functions are implementation details
       }
-    }
-    const label = spec.outline?.label?.(node, depth, source);
-    if (label !== undefined) {
-      if (label) lines.push(indent + tidy(label));
-      return;
     }
     if (declarations.has(node.type) || (depth > 0 && members.has(node.type))) {
       lines.push(indent + firstLine(source, node));

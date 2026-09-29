@@ -6,16 +6,22 @@ import { csharp } from './csharp.js';
 import { dart } from './dart.js';
 import { elixir } from './elixir.js';
 import { go } from './go.js';
+import { haskell } from './haskell.js';
 import { java } from './java.js';
+import { julia } from './julia.js';
 import { kotlin } from './kotlin.js';
 import { lua } from './lua.js';
+import { objc } from './objc.js';
+import { ocaml, ocamlInterface } from './ocaml.js';
 import { php } from './php.js';
 import { python } from './python.js';
 import { ruby } from './ruby.js';
 import { rust } from './rust.js';
 import { scala } from './scala.js';
+import { solidity } from './solidity.js';
 import { swift } from './swift.js';
 import { javascript, tsx, typescript } from './typescript.js';
+import { zig } from './zig.js';
 
 export type { BodyReplacement, LanguageId, LanguageSpec } from './types.js';
 export { EMBEDDED, embeddedForPath, scriptRegions, type EmbeddedRegion, type EmbeddedSpec } from './embedded.js';
@@ -40,6 +46,13 @@ export const LANGUAGES: Readonly<Record<LanguageId, LanguageSpec>> = {
   elixir,
   bash,
   lua,
+  zig,
+  haskell,
+  ocaml,
+  ocaml_interface: ocamlInterface,
+  julia,
+  solidity,
+  objc,
 };
 
 const BY_EXTENSION = new Map<string, LanguageSpec>(

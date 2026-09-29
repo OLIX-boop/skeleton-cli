@@ -207,7 +207,14 @@
           "dart",
           "elixir",
           "bash",
-          "lua"
+          "lua",
+          "zig",
+          "haskell",
+          "ocaml",
+          "ocaml_interface",
+          "julia",
+          "solidity",
+          "objc"
         ]
       },
       "description": "Map extra extensions (\".es6\") or file names (\"Jenkinsfile\") to a language id, e.g. { \".es6\": \"javascript\" }."

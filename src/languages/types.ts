@@ -19,7 +19,14 @@ export type LanguageId =
   | 'dart'
   | 'elixir'
   | 'bash'
-  | 'lua';
+  | 'lua'
+  | 'zig'
+  | 'haskell'
+  | 'ocaml'
+  | 'ocaml_interface'
+  | 'julia'
+  | 'solidity'
+  | 'objc';
 
 /** A span of source text to be replaced in the skeleton output. */
 export interface BodyReplacement {
@@ -79,6 +86,12 @@ export interface LanguageSpec {
     members?: readonly string[];
     /** Dynamic container check, for grammars where containers are generic calls (Elixir). */
     isContainer?(node: Node): boolean;
+    /**
+     * The node holding a container's members, where the generic lookup (a `body` field or a
+     * `…body`/`…block` child) doesn't find it. Returning the container itself lists its
+     * named children as members under its first line.
+     */
+    body?(node: Node): Node | null | undefined;
     /**
      * Custom line for a node: a string to list it (`''` to skip it silently), or `undefined`
      * to fall back to the generic rules. Used where node types alone are ambiguous (C).

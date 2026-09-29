@@ -37,6 +37,13 @@ const GRAMMARS = {
   'tree-sitter-elixir': 'tree-sitter-elixir@0.3.5',
   'tree-sitter-bash': 'tree-sitter-bash@0.25.1',
   'tree-sitter-lua': '@tree-sitter-grammars/tree-sitter-lua@0.4.1',
+  'tree-sitter-zig': '@tree-sitter-grammars/tree-sitter-zig@1.1.2',
+  'tree-sitter-haskell': 'tree-sitter-haskell@0.23.1',
+  'tree-sitter-ocaml': 'tree-sitter-ocaml@0.24.2',
+  'tree-sitter-ocaml_interface': 'tree-sitter-ocaml@0.24.2',
+  'tree-sitter-julia': 'tree-sitter-julia@0.23.1',
+  'tree-sitter-solidity': 'tree-sitter-solidity@1.2.13',
+  'tree-sitter-objc': 'tree-sitter-objc@3.0.2',
   'tree-sitter-swift': {
     build: 'tree-sitter-swift@0.7.1',
     // Upstream never resets its state on `deserialize(NULL, 0)`, which runs at the start of
