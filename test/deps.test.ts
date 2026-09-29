@@ -1,0 +1,112 @@
+import { afterEach, describe, expect, it } from 'vitest';
+import { dependencyGraph, mostImported, renderGraph } from '../src/deps.js';
+import { render } from '../src/output/index.js';
+import { pack } from '../src/pack.js';
+import { makeTree } from './fixtures.js';
+
+const cleanups: (() => Promise<void>)[] = [];
+afterEach(async () => {
+  await Promise.all(cleanups.splice(0).map((c) => c()));
+});
+
+async function graphOf(files: Record<string, string>) {
+  const t = await makeTree(files);
+  cleanups.push(t.cleanup);
+  const result = await pack(t.root);
+  return { graph: Object.fromEntries(dependencyGraph(result)), result, map: dependencyGraph(result) };
+}
+
+describe('dependencyGraph', () => {
+  it('resolves JS/TS relative imports, index files, NodeNext .js specifiers, require and dynamic import', async () => {
+    const { graph } = await graphOf({
+      'src/index.ts': "import { a } from './a.js';\nimport * as u from './util';\nexport * from './types';\nimport React from 'react';\n",
+      'src/a.ts': "const b = require('./lib/b');\nconst lazy = () => import('./lazy');\nimport './side-effect';\n",
+      'src/util/index.ts': 'export const u = 1;\n',
+      'src/types.d.ts': 'export type T = 1;\n',
+      'src/lib/b.js': 'module.exports = 1;\n',
+      'src/lazy.tsx': 'export default 1;\n',
+      'src/side-effect.ts': '',
+      'src/App.vue': "<script setup lang=\"ts\">\nimport { a } from './a';\n</script>\n",
+    });
+    expect(graph).toEqual({
+      'src/App.vue': ['src/a.ts'],
+      'src/a.ts': ['src/lazy.tsx', 'src/lib/b.js', 'src/side-effect.ts'],
+      'src/index.ts': ['src/a.ts', 'src/types.d.ts', 'src/util/index.ts'],
+    });
+  });
+
+  it('resolves Python relative and absolute imports, including src layouts', async () => {
+    const { graph } = await graphOf({
+      'src/app/__init__.py': '',
+      'src/app/main.py': 'from . import models\nfrom .db import session\nfrom app.utils.text import slug\nimport os\nimport app.config\n',
+      'src/app/models.py': 'from ..shared import x\n',
+      'src/app/db.py': '',
+      'src/app/config.py': '',
+      'src/app/utils/text.py': '',
+      'src/shared.py': '',
+    });
+    expect(graph).toEqual({
+      'src/app/main.py': ['src/app/__init__.py', 'src/app/config.py', 'src/app/db.py', 'src/app/utils/text.py'],
+      'src/app/models.py': ['src/shared.py'],
+    });
+  });
+
+  it('resolves Go package imports to a file of the package', async () => {
+    const { graph } = await graphOf({
+      'go.mod': 'module example.com/app\n',
+      'main.go': 'package main\n\nimport (\n\t"fmt"\n\t"example.com/app/internal/store"\n)\n',
+      'internal/store/store.go': 'package store\n\nimport "example.com/app/internal/model"\n',
+      'internal/store/store_test.go': 'package store\n',
+      'internal/model/model.go': 'package model\n',
+    });
+    expect(graph).toEqual({
+      'main.go': ['internal/store/store.go'],
+      'internal/store/store.go': ['internal/model/model.go'],
+    });
+  });
+
+  it('resolves Rust mod declarations, Java imports, C includes, Ruby and PHP requires', async () => {
+    const { graph } = await graphOf({
+      'src/main.rs': 'mod config;\npub mod net;\nfn main() {}\n',
+      'src/config.rs': '',
+      'src/net/mod.rs': 'mod tcp;\n',
+      'src/net/tcp.rs': '',
+      'java/src/main/java/com/acme/App.java': 'package com.acme;\nimport com.acme.util.Strings;\nimport java.util.List;\n',
+      'java/src/main/java/com/acme/util/Strings.java': 'package com.acme.util;\n',
+      'c/main.c': '#include "util.h"\n#include <stdio.h>\n',
+      'c/util.h': '',
+      'rb/app.rb': "require_relative 'lib/helper'\nrequire 'json'\n",
+      'rb/lib/helper.rb': '',
+      'php/index.php': "<?php\nrequire_once __DIR__ . '/src/boot.php';\n",
+      'php/src/boot.php': '<?php\n',
+    });
+    expect(graph).toMatchObject({
+      'src/main.rs': ['src/config.rs', 'src/net/mod.rs'],
+      'src/net/mod.rs': ['src/net/tcp.rs'],
+      'java/src/main/java/com/acme/App.java': ['java/src/main/java/com/acme/util/Strings.java'],
+      'c/main.c': ['c/util.h'],
+      'rb/app.rb': ['rb/lib/helper.rb'],
+      'php/index.php': ['php/src/boot.php'],
+    });
+  });
+
+  it('ranks the most imported files and renders the graph', async () => {
+    const { map, result } = await graphOf({
+      'a.ts': "import './shared';\n",
+      'b.ts': "import './shared';\nimport './a';\n",
+      'shared.ts': '',
+    });
+    expect(mostImported(map)).toEqual([
+      { path: 'shared.ts', importers: 2 },
+      { path: 'a.ts', importers: 1 },
+    ]);
+    expect(renderGraph(map, result.files)).toBe('a.ts -> shared.ts\nb.ts -> a.ts, shared.ts');
+    const md = render('markdown', result, { projectName: 'p', dependencies: map });
+    expect(md).toContain('## Dependencies');
+    expect(md).toContain('b.ts -> a.ts, shared.ts');
+    expect(JSON.parse(render('json', result, { projectName: 'p', dependencies: map })).dependencies).toEqual({
+      'a.ts': ['shared.ts'],
+      'b.ts': ['a.ts', 'shared.ts'],
+    });
+  });
+});

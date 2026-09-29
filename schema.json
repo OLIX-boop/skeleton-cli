@@ -117,6 +117,10 @@
       "type": "boolean",
       "description": "Include the directory tree."
     },
+    "deps": {
+      "type": "boolean",
+      "description": "Include the internal import graph."
+    },
     "instructions": {
       "type": "string",
       "description": "Instructions placed at the top (prefix with @ to read a file)."

@@ -51,3 +51,4 @@ export { loadConfig, findConfig, validateConfig, type AstpackConfig } from './co
 export { AstpackMcpServer, serveStdio, type ServerOptions } from './mcp/server.js';
 export type { CommentMode } from './languages/types.js';
 export { VERSION } from './version.js';
+export { dependencyGraph, mostImported, renderGraph, type DependencyGraph } from './deps.js';

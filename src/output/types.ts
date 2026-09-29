@@ -1,3 +1,4 @@
+import type { DependencyGraph } from '../deps.js';
 import type { PackedFile, PackResult } from '../pack.js';
 
 export type OutputFormat = 'markdown' | 'json' | 'xml';
@@ -17,6 +18,8 @@ export interface RenderOptions {
   focus?: readonly string[];
   /** Tool version, shown in the header. */
   version?: string;
+  /** Internal import graph to include after the tree (from `--deps`). */
+  dependencies?: DependencyGraph;
   /** A unified diff to include before the files (e.g. from `--diff`). */
   diff?: { ref: string; text: string };
   /**

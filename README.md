@@ -34,6 +34,7 @@ On real projects that is **49–89% fewer tokens** than packing raw source ([ben
   - [Comments](#comments)
   - [Filtering](#filtering)
   - [Output formats](#output-formats)
+  - [Dependency graph](#dependency-graph)
   - [Secret redaction](#secret-redaction)
 - [CLI reference](#cli-reference)
 - [Configuration file](#configuration-file)
@@ -182,6 +183,7 @@ astpack summary
 - **Safe by default** — honours `.gitignore` (nested, and the repo's own when you pack a sub-directory),
   skips dependencies, lockfiles, binaries, `.env` files and private keys, and masks secrets that slipped into
   code.
+- **Dependency graph** — `--deps` adds a `file -> imports` map of the project's internal modules.
 - **Three formats** — Markdown (default), LLM-style XML and JSON; `--clipboard` and `--stdout` for piping.
 - **MCP server** — `astpack mcp` exposes `pack_codebase`, `estimate_tokens` and `skeleton_file` to Claude and other agents.
 - **Zero config, zero compilation** — WASM grammars, no native build step; an optional `astpack.config.json`
@@ -310,6 +312,18 @@ unless you pass `--follow-symlinks` (cycle-safe).
 
 Output is deterministic (no timestamps), which keeps prompt caches warm across runs.
 
+### Dependency graph
+
+```sh
+astpack --deps
+```
+
+adds a compact map of internal imports after the directory tree — one `file -> files it imports` line per
+file — so the model sees how modules connect even when their bodies are stripped. Relative imports are resolved
+for TypeScript/JavaScript (including NodeNext `.js` specifiers, `index` files, `require` and dynamic `import()`),
+Python (relative and absolute, `src/` layouts), Go packages, Rust `mod` declarations, Java/Kotlin/Scala imports,
+C/C++ `#include "…"`, Ruby `require_relative` and PHP `require`. Imports of external packages are left out.
+
 ### Secret redaction
 
 Anything you pack is about to be pasted into a third-party model, so astpack masks likely credentials by default:
@@ -345,6 +359,7 @@ This is a safety net, not a guarantee. Keep secrets out of your repository.
 | `--max-tokens <n>` | Fit the document into a token budget, e.g. `100k`. |
 | `--split-tokens <n>` | Split into part files of at most n tokens, e.g. `32k`. |
 | `--no-tree` | Omit the directory tree. |
+| `--deps` | Include the internal import graph (`file -> files it imports`). |
 | `--instructions <text>` | Instructions at the top of the document; `@file` reads a file. |
 | `--follow-symlinks` | Follow symbolic links. |
 | `--no-redact` | Don't mask likely secrets. |
@@ -395,7 +410,7 @@ pack code themselves:
 
 | Tool | What it does |
 | --- | --- |
-| `pack_codebase` | The packed document for a directory: `focus`, `changed`, `mode`, `comments`, `include`, `ignore`, `format`, `maxTokens`. |
+| `pack_codebase` | The packed document for a directory: `focus`, `changed`, `mode`, `comments`, `include`, `ignore`, `format`, `maxTokens`, `deps`. |
 | `estimate_tokens` | Packed vs raw token counts and the largest files, without the document, to pick focus and budgets. |
 | `skeleton_file` | One file's skeleton: a cheap way to read its API. |
 

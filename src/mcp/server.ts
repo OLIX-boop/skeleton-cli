@@ -2,6 +2,7 @@ import { realpathSync } from 'node:fs';
 import { realpath, stat } from 'node:fs/promises';
 import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
 import { fitToBudget } from '../budget.js';
+import { dependencyGraph } from '../deps.js';
 import { transformFile } from '../engine/transform.js';
 import { changedFiles } from '../git.js';
 import type { CommentMode } from '../languages/types.js';
@@ -267,6 +268,7 @@ export class AstpackMcpServer {
           properties: {
             ...packProperties,
             format: { type: 'string', enum: ['markdown', 'xml', 'json'], description: 'Document format (default markdown).' },
+            deps: { type: 'boolean', description: 'Include the internal import graph (which file imports which).' },
           },
           required: ['path'],
           additionalProperties: false,
@@ -274,8 +276,9 @@ export class AstpackMcpServer {
         run: async (args) => {
           const format = oneOf<OutputFormat>(args, 'format', ['markdown', 'xml', 'json']) ?? 'markdown';
           const maxTokens = num(args, 'maxTokens');
+          const deps = args.deps === true;
           const { root, result: packed, comments } = await runPack(args);
-          const renderOptions = { projectName: basename(root) };
+          const renderOptions = { projectName: basename(root), dependencies: deps ? dependencyGraph(packed) : undefined };
           let result = packed;
           let document: string;
           if (maxTokens) {

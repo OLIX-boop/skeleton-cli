@@ -1,3 +1,4 @@
+import { renderGraph } from '../deps.js';
 import { renderTree } from './tree.js';
 import { contentFiles, ensureTrailingNewline, legend, treeNotes } from './common.js';
 import type { Renderer } from './types.js';
@@ -22,6 +23,9 @@ export const renderXml: Renderer = (result, options) => {
   if (first && options.instructions?.trim()) out.push('<instructions>', options.instructions.trim(), '</instructions>');
   if (first && options.tree !== false) {
     out.push('<directory_structure>', renderTree(whole.files.map((f) => f.path), treeNotes(whole)), '</directory_structure>');
+  }
+  if (first && options.dependencies?.size) {
+    out.push('<dependencies>', renderGraph(options.dependencies, whole.files), '</dependencies>');
   }
   if (first && options.diff?.text.trim()) {
     out.push(`<git_diff ref="${attr(options.diff.ref)}">`, ensureTrailingNewline(options.diff.text) + '</git_diff>');

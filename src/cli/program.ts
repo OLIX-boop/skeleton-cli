@@ -62,6 +62,7 @@ export function buildProgram(io: CliIO, setExit: (code: number) => void): Comman
       wrapParser(parseTokenCount),
     )
     .option('--no-tree', 'omit the directory tree')
+    .option('--deps', 'include the internal import graph (which file imports which)')
     .option('--instructions <text>', 'instructions placed at the top of the document (prefix with @ to read a file)')
     .option('--follow-symlinks', 'follow symbolic links')
     .option('--no-redact', 'do not mask likely secrets (API keys, tokens, private keys, passwords)')

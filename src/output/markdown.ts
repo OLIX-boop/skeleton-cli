@@ -1,3 +1,4 @@
+import { renderGraph } from '../deps.js';
 import { renderTree } from './tree.js';
 import { contentFiles, ensureTrailingNewline, codeFence, fileNote, legend, treeNotes } from './common.js';
 import type { Renderer } from './types.js';
@@ -22,6 +23,19 @@ export const renderMarkdown: Renderer = (result, options) => {
   if (first && options.tree !== false) {
     const tree = renderTree(whole.files.map((f) => f.path), treeNotes(whole));
     out.push('## Directory structure', '', '```text', tree, '```', '');
+  }
+
+  if (first && options.dependencies?.size) {
+    out.push(
+      '## Dependencies',
+      '',
+      'Internal imports, one line per file: `file -> files it imports`.',
+      '',
+      '```text',
+      renderGraph(options.dependencies, whole.files),
+      '```',
+      '',
+    );
   }
 
   if (first && options.diff?.text.trim()) {

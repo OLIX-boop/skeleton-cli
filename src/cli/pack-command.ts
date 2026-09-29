@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, dirname, relative, resolve } from 'node:path';
 import type { Command } from 'commander';
 import { fitToBudget, type BudgetReport } from '../budget.js';
+import { dependencyGraph } from '../deps.js';
 import { findConfig, loadConfig, type AstpackConfig } from '../config.js';
 import { changedFiles, cloneRemote, diffText, parseRemote } from '../git.js';
 import { OUTPUT_EXTENSIONS, render } from '../output/index.js';
@@ -198,6 +199,7 @@ export async function packCommand(directory: string, command: Command, io: CliIO
       focus: changedRef ? [...opts.focus, `changed vs ${changedRef}`] : opts.focus,
       version: VERSION,
       diff: diffRef ? { ref: diffRef, text: maybeRedact(await diffText(root, diffRef), opts.redact) } : undefined,
+      dependencies: opts.deps ? dependencyGraph(result) : undefined,
     };
 
     let document: string | undefined;

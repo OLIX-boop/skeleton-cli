@@ -23,6 +23,7 @@ export interface PackCliOptions {
   maxTokens?: number;
   splitTokens?: number;
   tree: boolean;
+  deps?: boolean;
   instructions?: string;
   followSymlinks?: boolean;
   redact: boolean;

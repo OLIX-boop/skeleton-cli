@@ -11,6 +11,7 @@ export interface JsonDocument {
   instructions?: string;
   tree?: string;
   diff?: { ref: string; text: string };
+  dependencies?: Record<string, string[]>;
   part?: { index: number; total: number };
   files: {
     path: string;
@@ -37,6 +38,7 @@ export function toJsonDocument(...[result, options]: Parameters<Renderer>): Json
     ...(part ? { part: { index: part.index, total: part.total } } : {}),
     ...(first && options.instructions?.trim() ? { instructions: options.instructions.trim() } : {}),
     ...(first && options.tree !== false ? { tree: renderTree(whole.files.map((f) => f.path), treeNotes(whole)) } : {}),
+    ...(first && options.dependencies?.size ? { dependencies: Object.fromEntries(options.dependencies) } : {}),
     ...(first && options.diff?.text.trim() ? { diff: options.diff } : {}),
     files: contentFiles(result).map((f) => ({
       path: f.path,
