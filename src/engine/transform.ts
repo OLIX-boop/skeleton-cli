@@ -119,7 +119,14 @@ export async function transformFile(filePath: string, content: string, options: 
   const language = languageForPath(filePath);
   if (language) {
     if (!bodies && comments === 'all') return verbatim(language);
-    const result = await skeletonize(content, language, { placeholder: options.placeholder, comments, bodies });
+    let result;
+    try {
+      result = await skeletonize(content, language, { placeholder: options.placeholder, comments, bodies });
+    } catch {
+      // A grammar crashed on this input: fall back to what we'd do for an unknown language.
+      const fallback = bodies ? truncate(content, { ...DEFAULT_FALLBACK, ...options.fallback }) : { content, truncated: false };
+      return { ...verbatim(language), content: fallback.content, strategy: fallback.truncated ? 'truncated' : 'full', parseErrors: true };
+    }
     return {
       content: result.code,
       strategy: bodies ? 'skeleton' : 'full',

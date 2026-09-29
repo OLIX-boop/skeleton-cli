@@ -2,7 +2,7 @@ import type { Node } from 'web-tree-sitter';
 import { LANGUAGES, type LanguageId, type LanguageSpec } from '../languages/index.js';
 import type { CommentMode, RuleContext } from '../languages/types.js';
 import { COMMENT_TYPE, isDirective, isDocComment, removalSpan } from './comments.js';
-import { getParser } from './parser.js';
+import { getParser, resetParser } from './parser.js';
 
 export interface SkeletonOptions {
   /**
@@ -152,7 +152,13 @@ export async function skeletonize(
 ): Promise<SkeletonResult> {
   const spec = typeof language === 'string' ? LANGUAGES[language] : language;
   const parser = await getParser(spec);
-  const tree = parser.parse(source);
+  let tree;
+  try {
+    tree = parser.parse(source);
+  } catch (error) {
+    resetParser(spec);
+    throw new Error(`The ${spec.id} parser crashed: ${(error as Error).message}`);
+  }
   if (!tree) throw new Error(`Failed to parse source as ${spec.id}`);
   try {
     const context: RuleContext = { placeholder: options.placeholder ?? DEFAULT_PLACEHOLDER, comments: options.comments ?? 'all' };

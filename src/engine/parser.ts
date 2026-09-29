@@ -1,7 +1,9 @@
+import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { Language, Parser } from 'web-tree-sitter';
 import type { LanguageSpec } from '../languages/index.js';
+import { IMPORT_RENAMES, renameImports } from './wasm-patch.js';
 
 const require = createRequire(import.meta.url);
 
@@ -23,12 +25,26 @@ async function loadLanguage(spec: LanguageSpec): Promise<Language> {
   await init();
   let lang = languageCache.get(spec.grammar);
   if (!lang) {
-    lang = Language.load(grammarPath(spec.grammar));
+    lang = readFile(grammarPath(spec.grammar)).then((bytes) => Language.load(renameImports(bytes, IMPORT_RENAMES)));
     languageCache.set(spec.grammar, lang);
     // Allow a later retry if loading failed.
     lang.catch(() => languageCache.delete(spec.grammar));
   }
   return lang;
+}
+
+/**
+ * Drop the cached parser for a language, e.g. after a grammar's scanner trapped mid-parse
+ * and left it in an unknown state.
+ */
+export function resetParser(spec: LanguageSpec): void {
+  const parser = parserCache.get(spec.grammar);
+  parserCache.delete(spec.grammar);
+  try {
+    parser?.delete();
+  } catch {
+    // already unusable
+  }
 }
 
 /** Get a (cached) parser configured for the given language. */
