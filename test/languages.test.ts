@@ -882,6 +882,27 @@ end
   });
 });
 
+describe('C# lambdas and anonymous methods', () => {
+  it('strips block and multi-line lambdas, keeps one-liners', async () => {
+    const src = `class A {
+    Func<int, int> f = x => x * 2;
+    Action a = () => {
+        Run();
+    };
+    Func<int, int> g = x =>
+        x
+        + 1;
+    EventHandler h = delegate (object s, EventArgs e) { Log(); };
+}
+`;
+    const out = await skel(src, 'csharp');
+    expect(out).toContain('Func<int, int> f = x => x * 2;');
+    expect(out).toContain(`Action a = () => ${P};`);
+    expect(out).toContain(`Func<int, int> g = x =>\n        ${P};`);
+    expect(out).toContain(`delegate (object s, EventArgs e) ${P};`);
+  });
+});
+
 describe('modern syntax parses without errors', () => {
   it.each([
     ['typescript', 'class A { accessor x = 1; m() { using r = get(); return 1; } }\nconst c = { a: 1 } satisfies Cfg;\nfunction g<const T>(x: T) { return x; }\n'],
