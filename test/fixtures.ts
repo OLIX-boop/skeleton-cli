@@ -7,8 +7,11 @@ export async function makeTree(files: Record<string, string | Uint8Array>): Prom
   const root = await mkdtemp(join(tmpdir(), 'astpack-'));
   for (const [rel, content] of Object.entries(files)) {
     const abs = join(root, rel);
+    if (rel.endsWith('/')) {
+      await mkdir(abs, { recursive: true });
+      continue;
+    }
     await mkdir(dirname(abs), { recursive: true });
-    if (rel.endsWith('/')) continue;
     await writeFile(abs, content);
   }
   return { root, cleanup: () => rm(root, { recursive: true, force: true }) };
