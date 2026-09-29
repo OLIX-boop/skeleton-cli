@@ -56,7 +56,8 @@
     "test:watch": "vitest",
     "start": "node dist/cli.js",
     "prepublishOnly": "npm run build",
-    "schema": "npm run build && node scripts/generate-schema.mjs"
+    "schema": "npm run build && node scripts/generate-schema.mjs",
+    "check": "npm run lint && npm run typecheck && npm test"
   },
   "dependencies": {
     "commander": "^15.0.0",
