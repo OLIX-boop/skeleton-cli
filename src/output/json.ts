@@ -10,6 +10,7 @@ export interface JsonDocument {
   notes: string;
   instructions?: string;
   tree?: string;
+  diff?: { ref: string; text: string };
   files: {
     path: string;
     language: string | null;
@@ -31,6 +32,7 @@ export function toJsonDocument(...[result, options]: Parameters<Renderer>): Json
     notes: legend(result),
     ...(options.instructions?.trim() ? { instructions: options.instructions.trim() } : {}),
     ...(options.tree !== false ? { tree: renderTree(result.files.map((f) => f.path), treeNotes(result)) } : {}),
+    ...(options.diff?.text.trim() ? { diff: options.diff } : {}),
     files: result.files.map((f) => ({
       path: f.path,
       language: f.language ?? null,

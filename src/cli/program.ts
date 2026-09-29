@@ -11,6 +11,7 @@ import { makeColors, shouldColor } from './colors.js';
 import { formatNumber, parsePositiveInt, parseSize, parseTokenCount } from './format.js';
 import { renderSummary } from './summary.js';
 import { toPosix } from '../walker/rules.js';
+import { changedFiles, cloneRemote, diffText, parseRemote } from '../git.js';
 import type { CommentMode } from '../languages/types.js';
 
 export interface CliIO {
@@ -41,6 +42,9 @@ interface RawOptions {
   tree: boolean;
   instructions?: string;
   followSymlinks?: boolean;
+  changed?: string | boolean;
+  diff?: string | boolean;
+  remote?: string;
   models: string[];
   top: number;
   quiet?: boolean;
@@ -98,6 +102,9 @@ export function buildProgram(): Command {
     .option('--no-tree', 'omit the directory tree')
     .option('--instructions <text>', 'instructions placed at the top of the document (prefix with @ to read a file)')
     .option('--follow-symlinks', 'follow symbolic links')
+    .option('--changed [ref]', 'focus files changed vs a git ref (default HEAD: uncommitted and untracked changes)')
+    .option('--diff [ref]', 'include the git diff vs a ref (default: the --changed ref, or HEAD)')
+    .option('--remote <repo>', 'pack a remote repository (owner/repo, URL, optionally #branch) via a shallow clone')
     .option(
       '--models <ids>',
       `models to price in the summary (comma-separated; available: ${MODELS.map((m) => m.id).join(', ')})`,
@@ -148,6 +155,7 @@ export async function run(argv: readonly string[], io: CliIO = { stdout: process
   const colors = makeColors(opts.color && shouldColor(summaryStream));
   const errColors = makeColors(opts.color && shouldColor(io.stderr));
 
+  const cleanups: (() => Promise<void>)[] = [];
   try {
     if (opts.skeleton && opts.full) throw new Error('--skeleton and --full are mutually exclusive');
     const unknownModels = opts.models.filter((m) => !findModel(m));
@@ -155,7 +163,23 @@ export async function run(argv: readonly string[], io: CliIO = { stdout: process
       throw new Error(`Unknown model(s): ${unknownModels.join(', ')}. Available: ${MODELS.map((m) => m.id).join(', ')}`);
     }
 
-    const root = resolve(io.cwd, directory);
+    let root = resolve(io.cwd, directory);
+    let projectName = basename(root);
+    if (opts.remote) {
+      const spec = parseRemote(opts.remote);
+      if (!opts.quiet) io.stderr.write(errColors.dim(`Cloning ${spec.url}${spec.branch ? ` (${spec.branch})` : ''}…\n`));
+      const clone = await cloneRemote(spec);
+      cleanups.push(clone.cleanup);
+      root = clone.dir;
+      projectName = spec.name;
+    }
+    const changedRef = opts.changed === true ? 'HEAD' : opts.changed || undefined;
+    const focus = [...opts.focus];
+    if (changedRef) {
+      const changed = await changedFiles(root, changedRef);
+      if (!changed.length) io.stderr.write(errColors.yellow(`warning: no files changed vs ${changedRef}\n`));
+      focus.push(...changed);
+    }
     const outputPath = opts.stdout ? undefined : resolve(io.cwd, opts.output ?? `astpack-output.${OUTPUT_EXTENSIONS[opts.format]}`);
     const ignore = [...opts.ignore];
     // Never pack our own output file.
@@ -167,7 +191,7 @@ export async function run(argv: readonly string[], io: CliIO = { stdout: process
     const showProgress = !opts.quiet && !!io.stderr.isTTY;
     const packOptions: PackOptions = {
       mode: opts.full ? 'full' : 'skeleton',
-      focus: opts.focus,
+      focus,
       cwd: io.cwd,
       placeholder: opts.placeholder,
       comments: opts.comments,
@@ -201,12 +225,14 @@ export async function run(argv: readonly string[], io: CliIO = { stdout: process
       io.stderr.write(errColors.yellow(`warning: no files matched --focus ${opts.focus.join(', ')}\n`));
     }
 
+    const diffRef = opts.diff === true ? (changedRef ?? 'HEAD') : opts.diff || undefined;
     const renderOptions = {
-      projectName: basename(root),
+      projectName,
       tree: opts.tree,
       instructions: await readInstructions(opts.instructions, io.cwd),
-      focus: opts.focus,
+      focus: changedRef ? [...opts.focus, `changed vs ${changedRef}`] : opts.focus,
       version: VERSION,
+      diff: diffRef ? { ref: diffRef, text: await diffText(root, diffRef) } : undefined,
     };
     let document: string;
     let budget: BudgetReport | undefined;
@@ -252,5 +278,7 @@ export async function run(argv: readonly string[], io: CliIO = { stdout: process
   } catch (error) {
     io.stderr.write(`${errColors.red('error:')} ${(error as Error).message}\n`);
     return 1;
+  } finally {
+    await Promise.all(cleanups.map((c) => c()));
   }
 }

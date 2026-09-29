@@ -19,6 +19,9 @@ export const renderXml: Renderer = (result, options) => {
   if (options.tree !== false) {
     out.push('<directory_structure>', renderTree(result.files.map((f) => f.path), treeNotes(result)), '</directory_structure>');
   }
+  if (options.diff?.text.trim()) {
+    out.push(`<git_diff ref="${attr(options.diff.ref)}">`, ensureTrailingNewline(options.diff.text) + '</git_diff>');
+  }
   out.push('<files>');
   for (const file of contentFiles(result)) {
     const attrs = [`path="${attr(file.path)}"`];

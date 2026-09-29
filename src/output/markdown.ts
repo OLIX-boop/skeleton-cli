@@ -19,6 +19,11 @@ export const renderMarkdown: Renderer = (result, options) => {
     out.push('## Directory structure', '', '```text', tree, '```', '');
   }
 
+  if (options.diff?.text.trim()) {
+    const fence = codeFence(options.diff.text);
+    out.push(`## Git diff (vs \`${options.diff.ref}\`)`, '', `${fence}diff`, ensureTrailingNewline(options.diff.text) + fence, '');
+  }
+
   out.push('## Files', '');
   for (const file of contentFiles(result)) {
     const note = fileNote(file);

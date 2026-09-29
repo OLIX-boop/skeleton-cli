@@ -17,6 +17,8 @@ export interface RenderOptions {
   focus?: readonly string[];
   /** Tool version, shown in the header. */
   version?: string;
+  /** A unified diff to include before the files (e.g. from `--diff`). */
+  diff?: { ref: string; text: string };
 }
 
 export interface Renderer {
