@@ -4,22 +4,27 @@ import type { Renderer } from './types.js';
 
 export const renderMarkdown: Renderer = (result, options) => {
   const out: string[] = [];
-  out.push(`# ${options.projectName}`, '');
+  const part = options.part;
+  const first = !part || part.index === 1;
+  const whole = part ? { ...result, files: [...part.allFiles] } : result;
+  out.push(`# ${options.projectName}${part ? ` (part ${part.index} of ${part.total})` : ''}`, '');
 
-  const meta = [`mode: ${result.mode}`, `${result.files.length} files`];
+  const meta = [`mode: ${result.mode}`, part ? `${result.files.length} of ${part.allFiles.length} files` : `${result.files.length} files`];
   if (options.focus?.length) meta.push(`focus: ${options.focus.join(', ')}`);
-  out.push(`> Packed by astpack${options.version ? ` v${options.version}` : ''} · ${meta.join(' · ')}`, '>', `> ${legend(result)}`, '');
+  out.push(`> Packed by astpack${options.version ? ` v${options.version}` : ''} · ${meta.join(' · ')}`, '>', `> ${legend(whole)}`);
+  if (part && !first) out.push('>', `> This is part ${part.index} of ${part.total}; the directory structure is in part 1.`);
+  out.push('');
 
-  if (options.instructions?.trim()) {
+  if (first && options.instructions?.trim()) {
     out.push('## Instructions', '', options.instructions.trim(), '');
   }
 
-  if (options.tree !== false) {
-    const tree = renderTree(result.files.map((f) => f.path), treeNotes(result));
+  if (first && options.tree !== false) {
+    const tree = renderTree(whole.files.map((f) => f.path), treeNotes(whole));
     out.push('## Directory structure', '', '```text', tree, '```', '');
   }
 
-  if (options.diff?.text.trim()) {
+  if (first && options.diff?.text.trim()) {
     const fence = codeFence(options.diff.text);
     out.push(`## Git diff (vs \`${options.diff.ref}\`)`, '', `${fence}diff`, ensureTrailingNewline(options.diff.text) + fence, '');
   }

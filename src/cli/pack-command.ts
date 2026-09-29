@@ -1,11 +1,12 @@
-import { readFile, writeFile } from 'node:fs/promises';
-import { basename, relative, resolve } from 'node:path';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { basename, dirname, relative, resolve } from 'node:path';
 import type { Command } from 'commander';
 import { fitToBudget, type BudgetReport } from '../budget.js';
 import { findConfig, loadConfig, type AstpackConfig } from '../config.js';
 import { changedFiles, cloneRemote, diffText, parseRemote } from '../git.js';
 import { OUTPUT_EXTENSIONS, render } from '../output/index.js';
 import { pack, type PackOptions } from '../pack.js';
+import { partPath, splitPack, type SplitReport } from '../split.js';
 import { redactSecrets } from '../security/secrets.js';
 import { computeStats, DEFAULT_MODELS, findModel, MODELS } from '../tokens/index.js';
 import { VERSION } from '../version.js';
@@ -51,7 +52,8 @@ export function applyConfig(opts: PackCliOptions, config: AstpackConfig, fromCli
         if (!fromCli(key)) next.maxFileSize = typeof value === 'number' ? value : parseSize(value as string);
         break;
       case 'maxTokens':
-        if (!fromCli(key)) next.maxTokens = typeof value === 'number' ? value : parseTokenCount(value as string);
+      case 'splitTokens':
+        if (!fromCli(key)) next[key] = typeof value === 'number' ? value : parseTokenCount(value as string);
         break;
       default:
         if (!fromCli(key)) (next as unknown as Record<string, unknown>)[key] = value;
@@ -95,6 +97,7 @@ export async function packCommand(directory: string, command: Command, io: CliIO
     const colors = makeColors(opts.color && shouldColor(summaryStream));
 
     if (opts.skeleton && opts.full) throw new Error('--skeleton and --full are mutually exclusive');
+    if (opts.splitTokens && (opts.stdout || opts.clipboard)) throw new Error('--split-tokens writes files; it cannot be combined with --stdout or --clipboard');
     const unknownModels = opts.models.filter((m) => !findModel(m));
     if (unknownModels.length) {
       throw new Error(`Unknown model(s): ${unknownModels.join(', ')}. Available: ${MODELS.map((m) => m.id).join(', ')}`);
@@ -122,7 +125,7 @@ export async function packCommand(directory: string, command: Command, io: CliIO
     // Never pack our own output file.
     if (outputPath) {
       const rel = toPosix(relative(root, outputPath));
-      if (rel && !rel.startsWith('..')) ignore.push(`/${rel}`);
+      if (rel && !rel.startsWith('..')) ignore.push(`/${rel}`, `/${partPath(rel, 0).replace('.part0', '.part*')}`);
     }
 
     const showProgress = !opts.quiet && !!io.stderr.isTTY;
@@ -191,10 +194,24 @@ export async function packCommand(directory: string, command: Command, io: CliIO
     }
 
     const destinations: string[] = [];
-    if (outputPath) {
+    const display = (p: string) => {
+      const shown = toPosix(relative(io.cwd, p));
+      return shown && !shown.startsWith('..') ? shown : p;
+    };
+    let parts: SplitReport | undefined;
+    if (outputPath) await mkdir(dirname(outputPath), { recursive: true });
+    if (outputPath && opts.splitTokens) {
+      parts = splitPack(result, {
+        maxTokens: opts.splitTokens,
+        render: (r, part) => render(opts.format, r, { ...renderOptions, part }),
+      });
+      for (const part of parts.parts) await writeFile(partPath(outputPath, part.index), part.document);
+      const first = display(partPath(outputPath, 1));
+      destinations.push(`Wrote ${parts.parts.length} part${parts.parts.length === 1 ? '' : 's'} (${first}${parts.parts.length > 1 ? ' …' : ''})`);
+      for (const path of parts.oversized) warn(io, errColors, `${path} alone exceeds --split-tokens ${formatNumber(opts.splitTokens)}`);
+    } else if (outputPath) {
       await writeFile(outputPath, document);
-      const shown = toPosix(relative(io.cwd, outputPath));
-      destinations.push(`Wrote ${shown && !shown.startsWith('..') ? shown : outputPath}`);
+      destinations.push(`Wrote ${display(outputPath)}`);
     } else {
       io.stdout.write(document);
     }
@@ -206,7 +223,9 @@ export async function packCommand(directory: string, command: Command, io: CliIO
     if (!opts.quiet) {
       const stats = computeStats(result, document, { models: opts.models.length ? opts.models : [...DEFAULT_MODELS] });
       const label = destinations.length ? destinations.join(', ') : 'Wrote to stdout';
-      summaryStream.write(`${renderSummary(stats, { colors, top: opts.top, outputLabel: label, mode: result.mode, budget })}\n`);
+      summaryStream.write(
+        `${renderSummary(stats, { colors, top: opts.top, outputLabel: label, mode: result.mode, budget, parts: parts?.parts.map((p) => p.tokens) })}\n`,
+      );
     }
     return 0;
   } catch (error) {

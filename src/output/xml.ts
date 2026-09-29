@@ -12,14 +12,18 @@ function attr(value: string): string {
  */
 export const renderXml: Renderer = (result, options) => {
   const out: string[] = [];
+  const part = options.part;
+  const first = !part || part.index === 1;
+  const whole = part ? { ...result, files: [...part.allFiles] } : result;
   const focus = options.focus?.length ? ` focus="${attr(options.focus.join(','))}"` : '';
-  out.push(`<project name="${attr(options.projectName)}" mode="${result.mode}" files="${result.files.length}"${focus}>`);
-  out.push(`<notes>${legend(result)}</notes>`);
-  if (options.instructions?.trim()) out.push('<instructions>', options.instructions.trim(), '</instructions>');
-  if (options.tree !== false) {
-    out.push('<directory_structure>', renderTree(result.files.map((f) => f.path), treeNotes(result)), '</directory_structure>');
+  const partAttr = part ? ` part="${part.index}" parts="${part.total}"` : '';
+  out.push(`<project name="${attr(options.projectName)}" mode="${result.mode}" files="${whole.files.length}"${partAttr}${focus}>`);
+  out.push(`<notes>${legend(whole)}${part && !first ? ` This is part ${part.index} of ${part.total}; the directory structure is in part 1.` : ''}</notes>`);
+  if (first && options.instructions?.trim()) out.push('<instructions>', options.instructions.trim(), '</instructions>');
+  if (first && options.tree !== false) {
+    out.push('<directory_structure>', renderTree(whole.files.map((f) => f.path), treeNotes(whole)), '</directory_structure>');
   }
-  if (options.diff?.text.trim()) {
+  if (first && options.diff?.text.trim()) {
     out.push(`<git_diff ref="${attr(options.diff.ref)}">`, ensureTrailingNewline(options.diff.text) + '</git_diff>');
   }
   out.push('<files>');

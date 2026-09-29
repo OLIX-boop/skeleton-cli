@@ -21,6 +21,7 @@ export interface PackCliOptions {
   placeholder?: string;
   comments: CommentMode;
   maxTokens?: number;
+  splitTokens?: number;
   tree: boolean;
   instructions?: string;
   followSymlinks?: boolean;

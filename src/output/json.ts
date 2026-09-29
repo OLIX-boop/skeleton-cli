@@ -1,5 +1,5 @@
 import { renderTree } from './tree.js';
-import { legend, treeNotes } from './common.js';
+import { contentFiles, legend, treeNotes } from './common.js';
 import type { Renderer } from './types.js';
 
 export interface JsonDocument {
@@ -11,6 +11,7 @@ export interface JsonDocument {
   instructions?: string;
   tree?: string;
   diff?: { ref: string; text: string };
+  part?: { index: number; total: number };
   files: {
     path: string;
     language: string | null;
@@ -24,16 +25,20 @@ export interface JsonDocument {
 }
 
 export function toJsonDocument(...[result, options]: Parameters<Renderer>): JsonDocument {
+  const part = options.part;
+  const first = !part || part.index === 1;
+  const whole = part ? { ...result, files: [...part.allFiles] } : result;
   return {
     project: options.projectName,
     tool: { name: 'astpack', version: options.version },
     mode: result.mode,
     focus: [...(options.focus ?? [])],
-    notes: legend(result),
-    ...(options.instructions?.trim() ? { instructions: options.instructions.trim() } : {}),
-    ...(options.tree !== false ? { tree: renderTree(result.files.map((f) => f.path), treeNotes(result)) } : {}),
-    ...(options.diff?.text.trim() ? { diff: options.diff } : {}),
-    files: result.files.map((f) => ({
+    notes: legend(whole),
+    ...(part ? { part: { index: part.index, total: part.total } } : {}),
+    ...(first && options.instructions?.trim() ? { instructions: options.instructions.trim() } : {}),
+    ...(first && options.tree !== false ? { tree: renderTree(whole.files.map((f) => f.path), treeNotes(whole)) } : {}),
+    ...(first && options.diff?.text.trim() ? { diff: options.diff } : {}),
+    files: contentFiles(result).map((f) => ({
       path: f.path,
       language: f.language ?? null,
       strategy: f.strategy,

@@ -24,6 +24,7 @@ export interface AstpackConfig {
   placeholder?: string;
   comments?: 'all' | 'docs' | 'none';
   maxTokens?: number | string;
+  splitTokens?: number | string;
   tree?: boolean;
   instructions?: string;
   followSymlinks?: boolean;
@@ -54,6 +55,7 @@ export const CONFIG_SCHEMA: Record<keyof AstpackConfig, { kind: Kind; descriptio
   placeholder: { kind: 'string', description: 'Marker text for stripped bodies.' },
   comments: { kind: ['all', 'docs', 'none'], description: 'Comments to keep outside focused files.' },
   maxTokens: { kind: 'number|string', description: 'Token budget for the document (e.g. 100000 or "100k").' },
+  splitTokens: { kind: 'number|string', description: 'Split the output into parts of at most this many tokens.' },
   tree: { kind: 'boolean', description: 'Include the directory tree.' },
   instructions: { kind: 'string', description: 'Instructions placed at the top (prefix with @ to read a file).' },
   followSymlinks: { kind: 'boolean', description: 'Follow symbolic links.' },

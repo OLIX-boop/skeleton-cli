@@ -1,4 +1,4 @@
-import type { PackResult } from '../pack.js';
+import type { PackedFile, PackResult } from '../pack.js';
 
 export type OutputFormat = 'markdown' | 'json' | 'xml';
 
@@ -19,6 +19,11 @@ export interface RenderOptions {
   version?: string;
   /** A unified diff to include before the files (e.g. from `--diff`). */
   diff?: { ref: string; text: string };
+  /**
+   * When the pack is split into several documents: this document's 1-based index, the total,
+   * and every file of the pack (the tree, instructions and diff only appear in part 1).
+   */
+  part?: { index: number; total: number; allFiles: readonly PackedFile[] };
 }
 
 export interface Renderer {

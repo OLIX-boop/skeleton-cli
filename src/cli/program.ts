@@ -56,6 +56,11 @@ export function buildProgram(io: CliIO, setExit: (code: number) => void): Comman
       'fit the output into a token budget (e.g. 100k) by progressively compressing and omitting files',
       wrapParser(parseTokenCount),
     )
+    .option(
+      '--split-tokens <n>',
+      'split the output into several files of at most n tokens each (e.g. 32k), cutting between files',
+      wrapParser(parseTokenCount),
+    )
     .option('--no-tree', 'omit the directory tree')
     .option('--instructions <text>', 'instructions placed at the top of the document (prefix with @ to read a file)')
     .option('--follow-symlinks', 'follow symbolic links')

@@ -106,6 +106,13 @@
       ],
       "description": "Token budget for the document (e.g. 100000 or \"100k\")."
     },
+    "splitTokens": {
+      "type": [
+        "number",
+        "string"
+      ],
+      "description": "Split the output into parts of at most this many tokens."
+    },
     "tree": {
       "type": "boolean",
       "description": "Include the directory tree."

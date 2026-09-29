@@ -11,6 +11,8 @@ export interface SummaryOptions {
   outputLabel: string;
   mode: string;
   budget?: BudgetReport;
+  /** Token counts of each part when the output was split. */
+  parts?: number[];
 }
 
 const SKIP_LABELS: Record<string, string> = {
@@ -63,6 +65,9 @@ export function renderSummary(stats: PackStats, options: SummaryOptions): string
       'Token budget',
       `${formatNumber(budget.tokens)} / ${formatNumber(budget.maxTokens)} ${status}${detail ? c.dim(`  (${detail})`) : ''}`,
     ]);
+  }
+  if (options.parts && options.parts.length > 1) {
+    rows.push(['Parts', `${options.parts.length}${c.dim(`  (${options.parts.map(formatNumber).join(' / ')} tokens)`)}`]);
   }
   out.push(c.bold('astpack summary'), table(rows, ['left', 'left']));
 
