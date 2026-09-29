@@ -1,6 +1,7 @@
 import { embeddedForPath, languageForPath, LANGUAGES, type EmbeddedSpec } from '../languages/index.js';
 import { createHash } from 'node:crypto';
 import type { CommentMode } from '../languages/types.js';
+import { cacheStore } from '../cache/store.js';
 import { LruCache } from '../util/lru.js';
 import { redactSecrets, type RedactionHit } from '../security/secrets.js';
 import { outline } from './outline.js';
@@ -168,6 +169,13 @@ function cacheKey(filePath: string, content: string, options: TransformOptions):
     .digest('base64');
 }
 
+type StoredTransform = Omit<TransformedFile, 'content'> & { content?: string; same?: boolean };
+
+/** Unchanged content (full source) is stored as a flag rather than a second copy. */
+function storable(result: TransformedFile, source: string): StoredTransform {
+  return result.content === source ? { ...result, content: undefined, same: true } : result;
+}
+
 /** Forget cached transforms (e.g. in tests). */
 export function clearTransformCache(): void {
   cache.clear();
@@ -176,15 +184,33 @@ export function clearTransformCache(): void {
 /** Produce the packaged content for a single file. */
 export async function transformFile(filePath: string, content: string, options: TransformOptions): Promise<TransformedFile> {
   const key = cacheKey(filePath, content, options);
+  const store = cacheStore();
   const cached = cache.get(key);
-  if (cached) return cached;
+  if (cached) {
+    // Keep the entry in the on-disk cache too, or saving would drop it.
+    if (store && store.get('transform', key) === undefined) store.set('transform', key, storable(cached, content));
+    return cached;
+  }
+  const stored = store?.get<StoredTransform>('transform', key);
+  if (stored) {
+    const { same, ...rest } = stored;
+    const restored = { ...rest, content: same ? content : stored.content! } as TransformedFile;
+    cache.set(key, restored);
+    return restored;
+  }
   let result = await transformContent(filePath, content, options);
+  // Only the id and fence are part of the result (not the whole language spec), so results
+  // stay small and serializable.
+  if (result.language) result = { ...result, language: { id: result.language.id, fence: result.language.fence } };
   if (options.redact !== false) {
     const redacted = redactSecrets(result.content);
     if (redacted.hits.length) result = { ...result, content: redacted.content, redactions: redacted.hits };
   }
   // A crash fallback may be transient (parser reset); don't pin it.
-  if (!(result.parseErrors && result.strippedBodies === 0 && result.strategy !== 'skeleton')) cache.set(key, result);
+  if (!(result.parseErrors && result.strippedBodies === 0 && result.strategy !== 'skeleton')) {
+    cache.set(key, result);
+    store?.set('transform', key, storable(result, content));
+  }
   return result;
 }
 

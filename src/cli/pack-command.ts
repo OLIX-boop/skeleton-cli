@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, dirname, relative, resolve } from 'node:path';
 import type { Command } from 'commander';
 import { fitToBudget, type BudgetReport } from '../budget.js';
+import { openCache, setCacheStore } from '../cache/store.js';
 import { dependencyGraph } from '../deps.js';
 import { findConfig, loadConfig, type AstpackConfig } from '../config.js';
 import { PRESETS } from '../presets.js';
@@ -203,6 +204,7 @@ export async function packCommand(directory: string, command: Command, io: CliIO
   try {
     let root = resolve(io.cwd, directory);
     let projectName = basename(root);
+    let cacheIdentity = root;
 
     // Config file: explicit --config, else astpack.config.json in the root or cwd.
     let configFocus: { dir: string; paths: string[] } | undefined;
@@ -248,6 +250,17 @@ export async function packCommand(directory: string, command: Command, io: CliIO
       cleanups.push(clone.cleanup);
       root = clone.dir;
       projectName = spec.name;
+      // Each clone lands in a new temporary directory; key its cache by what was cloned.
+      cacheIdentity = `remote:${spec.url}#${spec.branch ?? ''}`;
+    }
+
+    const cache = opts.cache === false ? undefined : openCache(cacheIdentity);
+    if (cache) {
+      setCacheStore(cache);
+      cleanups.push(async () => {
+        cache.save();
+        setCacheStore(undefined);
+      });
     }
 
     const requestedChanged = opts.changed === true ? 'HEAD' : opts.changed || undefined;
@@ -432,7 +445,12 @@ export async function packCommand(directory: string, command: Command, io: CliIO
       // `on`, not `once`: a terminal Ctrl+C can arrive twice (it also reaches the launcher).
       for (const s of signals) process.on(s, stop);
       try {
-        await watchLoop({ root, outputs: first.outputs, ignored: first.ignored, rerun: () => once(false), io, colors: errColors, signal: controller.signal });
+        const rerun = async () => {
+          const report = await once(false);
+          cache?.save();
+          return report;
+        };
+        await watchLoop({ root, outputs: first.outputs, ignored: first.ignored, rerun, io, colors: errColors, signal: controller.signal });
       } finally {
         for (const s of signals) process.off(s, stop);
       }

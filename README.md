@@ -192,6 +192,9 @@ astpack summary
 - **Three formats** — Markdown (default), LLM-style XML and JSON; `--clipboard` and `--stdout` for piping.
 - **Presets** — `--preset review|explain|refactor|debug` for common LLM tasks, with ready-made instructions.
 - **Token map** — `astpack tree` shows which directories the tokens go to; `--watch` keeps the output fresh.
+- **Find the right files** — `--query "invoice pdf export"` focuses the most relevant files; `--related`
+  adds their imports and importers.
+- **Fast re-runs** — an on-disk cache means only changed files are re-processed.
 - **MCP server** — `astpack mcp` exposes `pack_codebase`, `estimate_tokens` and `skeleton_file` to Claude and other agents.
 - **Zero config, zero compilation** — WASM grammars, no native build step; an optional `astpack.config.json`
   when you want defaults per project.
@@ -452,6 +455,7 @@ This is a safety net, not a guarantee. Keep secrets out of your repository.
 | `-w, --watch` | Keep running and re-pack whenever a file changes (unchanged files are served from an in-memory cache). |
 | `--stats-json <file>` | Also write the summary statistics as JSON (tokens, costs, per-file sizes) — handy in CI. |
 | `--no-color` | Disable colours (also respects `NO_COLOR` / `FORCE_COLOR`). |
+| `--no-cache` | Don't read or write the [on-disk cache](#cache). |
 | `-v, --version` | Print the version. |
 
 | Command | Description |
@@ -459,6 +463,7 @@ This is a safety net, not a guarantee. Keep secrets out of your repository.
 | `astpack init [directory] [--force]` | Create `astpack.config.json` and a commented `.packignore`. |
 | `astpack mcp [roots...]` | Run the MCP server over stdio (see [MCP server](#mcp-server)). |
 | `astpack tree [directory] [--depth n] [--min pct] [--full\|--outline]` | Show where the tokens are: a directory tree with packed and raw token totals, largest first. |
+| `astpack cache [clear]` | Show the on-disk cache's location and size, or delete it. |
 
 Environment: `NO_COLOR` / `FORCE_COLOR` control colours; `ASTPACK_WASM_TIERUP=1` keeps V8's default
 WebAssembly tiering (see [How it works](#how-it-works)).
@@ -627,7 +632,21 @@ walk ──► transform ──► render ──► (budget / split) ──► c
 4. **Budget / split** — optional passes that re-transform files at other compression levels, or partition
    them into parts, measuring the real document each time.
 5. **Count** — `cl100k_base` / `o200k_base` (tiktoken-identical, via `gpt-tokenizer`) on the final document,
-   plus a raw baseline from each file's original content.
+   plus a raw baseline from each file's original content. Long documents are counted in chunks cut where no
+   token can span the cut (a line break followed by a non-space character), so the sum is exact and each
+   chunk's count can be cached.
+
+### Cache
+
+Transform results and token counts are cached on disk, one file per project, keyed by a hash of each
+file's content and the options, so a re-run only processes what changed. Packing the VS Code sources
+(11,453 files, 35M raw tokens) takes about 130 s cold and 11 s warm. Entries a run doesn't use are dropped
+when it saves, projects not packed for 30 days are deleted, and a new astpack version starts afresh.
+
+- Location: `~/.cache/astpack` (Linux, or `$XDG_CACHE_HOME/astpack`), `~/Library/Caches/astpack` (macOS),
+  `%LOCALAPPDATA%\astpack\Cache` (Windows), or `$ASTPACK_CACHE_DIR`.
+- `astpack cache` shows its location and size; `astpack cache clear` deletes it.
+- `--no-cache`, or `ASTPACK_NO_CACHE=1`, turns it off.
 
 The CLI runs WebAssembly with V8's baseline compiler only (`--liftoff-only`, applied by re-launching itself
 once). The grammars contain a few enormous functions; optimizing them costs more time than a CLI run gains

@@ -103,6 +103,7 @@ export function buildProgram(io: CliIO, setExit: (code: number) => void): Comman
     .option('-w, --watch', 'keep running and re-pack whenever a file changes')
     .option('--stats-json <file>', 'also write the summary statistics as JSON (for CI)')
     .option('--no-color', 'disable coloured output')
+    .option('--no-cache', 'do not read or write the on-disk cache of transforms and token counts')
     .addHelpText(
       'after',
       `
@@ -136,6 +137,28 @@ Examples:
     .option('--no-color', 'disable coloured output')
     .action(async (directory: string, _opts, command: Command) => {
       setExit(await treeCommand(directory, command, io));
+    });
+
+  program
+    .command('cache')
+    .description('show the on-disk cache (location, files, size); `astpack cache clear` deletes it')
+    .argument('[action]', '"clear" to delete the cache')
+    .action(async (action: string | undefined) => {
+      const { cacheInfo, clearCache } = await import('../cache/store.js');
+      const { formatBytes } = await import('./format.js');
+      if (action === 'clear') {
+        const { files, bytes } = cacheInfo();
+        const dir = clearCache();
+        io.stdout.write(`Cleared ${files} cache file${files === 1 ? '' : 's'} (${formatBytes(bytes)}) from ${dir}\n`);
+        setExit(0);
+      } else if (action === undefined) {
+        const { dir, files, bytes } = cacheInfo();
+        io.stdout.write(`Cache: ${dir}\n${files} project${files === 1 ? '' : 's'}, ${formatBytes(bytes)}\n`);
+        setExit(0);
+      } else {
+        io.stderr.write(`error: unknown cache action "${action}" (expected "clear")\n`);
+        setExit(1);
+      }
     });
 
   program

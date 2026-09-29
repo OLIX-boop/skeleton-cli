@@ -45,4 +45,5 @@ export interface PackCliOptions {
   watch?: boolean;
   statsJson?: string;
   color: boolean;
+  cache?: boolean;
 }

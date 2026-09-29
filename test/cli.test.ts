@@ -110,6 +110,26 @@ describe('cli', () => {
     expect(none.stderr).toContain('No files matched --query');
   });
 
+  it('uses the on-disk cache unless disabled, and reports and clears it', async () => {
+    const root = await project();
+    const cacheDir = join(root, '.cache-dir');
+    const saved = { dir: process.env.ASTPACK_CACHE_DIR, off: process.env.ASTPACK_NO_CACHE };
+    process.env.ASTPACK_CACHE_DIR = cacheDir;
+    delete process.env.ASTPACK_NO_CACHE;
+    try {
+      await cli(['-q', '--dry-run', '--no-cache'], root);
+      expect((await cli(['cache'], root)).stdout).toContain('0 projects');
+      await cli(['-q', '--dry-run', '--ignore', '.cache-dir'], root);
+      expect((await cli(['cache'], root)).stdout).toContain('1 project,');
+      expect((await cli(['cache', 'clear'], root)).stdout).toContain('Cleared 1 cache file');
+      expect((await cli(['cache', 'nope'], root)).code).toBe(1);
+    } finally {
+      process.env.ASTPACK_CACHE_DIR = saved.dir;
+      if (saved.dir === undefined) delete process.env.ASTPACK_CACHE_DIR;
+      if (saved.off !== undefined) process.env.ASTPACK_NO_CACHE = saved.off;
+    }
+  });
+
   it('supports --full', async () => {
     const root = await project();
     const { stdout } = await cli(['--stdout', '-q', '--full'], root);

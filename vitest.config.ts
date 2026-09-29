@@ -9,5 +9,7 @@ export default defineConfig({
     // The first test in a file loads grammars and tokenizers cold; on busy CI runners
     // (Windows especially) that alone can exceed vitest's 5 s default.
     testTimeout: 20_000,
+    // Tests must not read or write the user's cache (the cache tests use their own directory).
+    env: { ASTPACK_NO_CACHE: '1' },
   },
 });
