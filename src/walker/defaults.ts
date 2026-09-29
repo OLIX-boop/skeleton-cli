@@ -85,6 +85,12 @@ export const DEFAULT_GENERATED_PATTERNS = [
   'Thumbs.db',
   '*.log',
   'astpack-output.*',
+  // astpack's own configuration
+  'astpack.config.json',
+  '.astpackrc',
+  '.astpackrc.json',
+  '.packignore',
+  '.astpackignore',
 ] as const;
 
 /**

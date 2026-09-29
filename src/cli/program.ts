@@ -1,57 +1,12 @@
-import { writeFile } from 'node:fs/promises';
-import { basename, relative, resolve } from 'node:path';
 import { Command, InvalidArgumentError, Option } from 'commander';
-import { fitToBudget, type BudgetReport } from '../budget.js';
-import { pack, type PackOptions } from '../pack.js';
-import { OUTPUT_EXTENSIONS, OUTPUT_FORMATS, render, type OutputFormat } from '../output/index.js';
-import { computeStats, DEFAULT_MODELS, findModel, MODELS } from '../tokens/index.js';
+import { OUTPUT_FORMATS } from '../output/index.js';
+import { MODELS } from '../tokens/index.js';
 import { VERSION } from '../version.js';
-import { copyToClipboard } from './clipboard.js';
-import { makeColors, shouldColor } from './colors.js';
-import { formatNumber, parsePositiveInt, parseSize, parseTokenCount } from './format.js';
-import { renderSummary } from './summary.js';
-import { toPosix } from '../walker/rules.js';
-import { changedFiles, cloneRemote, diffText, parseRemote } from '../git.js';
-import { redactSecrets } from '../security/secrets.js';
-import type { CommentMode } from '../languages/types.js';
+import { parsePositiveInt, parseSize, parseTokenCount } from './format.js';
+import { initCommand } from './init-command.js';
+import { packCommand, type CliIO } from './pack-command.js';
 
-export interface CliIO {
-  stdout: NodeJS.WriteStream;
-  stderr: NodeJS.WriteStream;
-  cwd: string;
-}
-
-interface RawOptions {
-  output?: string;
-  stdout?: boolean;
-  format: OutputFormat;
-  skeleton?: boolean;
-  full?: boolean;
-  focus: string[];
-  clipboard?: boolean;
-  ignore: string[];
-  include: string[];
-  gitignore: boolean;
-  packignore: boolean;
-  defaultIgnores: boolean;
-  maxFileSize?: number;
-  fallbackLines?: number;
-  fallbackChars?: number;
-  placeholder?: string;
-  comments: CommentMode;
-  maxTokens?: number;
-  tree: boolean;
-  instructions?: string;
-  followSymlinks?: boolean;
-  changed?: string | boolean;
-  diff?: string | boolean;
-  remote?: string;
-  redact: boolean;
-  models: string[];
-  top: number;
-  quiet?: boolean;
-  color: boolean;
-}
+export type { CliIO } from './pack-command.js';
 
 const collect = (value: string, previous: string[] = []) => [...previous, value];
 const collectList = (value: string, previous: string[] = []) => [
@@ -69,7 +24,7 @@ function wrapParser<T>(fn: (v: string) => T) {
   };
 }
 
-export function buildProgram(): Command {
+export function buildProgram(io: CliIO, setExit: (code: number) => void): Command {
   const program = new Command('astpack');
   program
     .description('Pack a codebase into an LLM-ready prompt, stripping function bodies with Tree-sitter.')
@@ -105,6 +60,8 @@ export function buildProgram(): Command {
     .option('--instructions <text>', 'instructions placed at the top of the document (prefix with @ to read a file)')
     .option('--follow-symlinks', 'follow symbolic links')
     .option('--no-redact', 'do not mask likely secrets (API keys, tokens, private keys, passwords)')
+    .option('--config <file>', 'config file (default: astpack.config.json in the directory or cwd)')
+    .option('--no-config', 'ignore config files')
     .option('--changed [ref]', 'focus files changed vs a git ref (default HEAD: uncommitted and untracked changes)')
     .option('--diff [ref]', 'include the git diff vs a ref (default: the --changed ref, or HEAD)')
     .option('--remote <repo>', 'pack a remote repository (owner/repo, URL, optionally #branch) via a shallow clone')
@@ -125,169 +82,39 @@ Examples:
   $ npx astpack --full --include "*.py"  raw Python sources only
   $ npx astpack -f xml --stdout | llm    pipe XML output into another tool`,
     );
+  program.action(async (directory: string | undefined, _opts, command: Command) => {
+    setExit(await packCommand(directory ?? '.', command, io));
+  });
+
+  program
+    .command('init')
+    .description('create astpack.config.json and .packignore')
+    .argument('[directory]', 'project root', '.')
+    .option('--force', 'overwrite an existing config file')
+    .action(async (directory: string, options: { force?: boolean }) => {
+      setExit(await initCommand(directory, options, io));
+    });
+
   return program;
 }
 
-function maybeRedact(text: string, redact: boolean): string {
-  return redact ? redactSecrets(text).content : text;
-}
-
-async function readInstructions(value: string | undefined, cwd: string): Promise<string | undefined> {
-  if (!value) return undefined;
-  if (!value.startsWith('@')) return value;
-  const { readFile } = await import('node:fs/promises');
-  return readFile(resolve(cwd, value.slice(1)), 'utf8');
-}
 
 /** Run the CLI. Returns the process exit code. */
 export async function run(argv: readonly string[], io: CliIO = { stdout: process.stdout, stderr: process.stderr, cwd: process.cwd() }): Promise<number> {
-  const program = buildProgram();
+  let exitCode = 0;
+  const program = buildProgram(io, (code) => {
+    exitCode = code;
+  });
   program.exitOverride();
   program.configureOutput({
     writeOut: (s) => io.stdout.write(s),
     writeErr: (s) => io.stderr.write(s),
   });
-
   try {
-    program.parse(argv as string[], { from: 'user' });
+    await program.parseAsync(argv as string[], { from: 'user' });
   } catch (error) {
     const code = (error as { exitCode?: number }).exitCode;
     return typeof code === 'number' ? code : 1;
   }
-
-  const parsed = program.opts<Partial<RawOptions>>();
-  const opts = { ...parsed, focus: parsed.focus ?? [], ignore: parsed.ignore ?? [], include: parsed.include ?? [], models: parsed.models ?? [] } as RawOptions;
-  const directory = program.args[0] ?? '.';
-  const summaryStream = opts.stdout ? io.stderr : io.stdout;
-  const colors = makeColors(opts.color && shouldColor(summaryStream));
-  const errColors = makeColors(opts.color && shouldColor(io.stderr));
-
-  const cleanups: (() => Promise<void>)[] = [];
-  try {
-    if (opts.skeleton && opts.full) throw new Error('--skeleton and --full are mutually exclusive');
-    const unknownModels = opts.models.filter((m) => !findModel(m));
-    if (unknownModels.length) {
-      throw new Error(`Unknown model(s): ${unknownModels.join(', ')}. Available: ${MODELS.map((m) => m.id).join(', ')}`);
-    }
-
-    let root = resolve(io.cwd, directory);
-    let projectName = basename(root);
-    if (opts.remote) {
-      const spec = parseRemote(opts.remote);
-      if (!opts.quiet) io.stderr.write(errColors.dim(`Cloning ${spec.url}${spec.branch ? ` (${spec.branch})` : ''}…\n`));
-      const clone = await cloneRemote(spec);
-      cleanups.push(clone.cleanup);
-      root = clone.dir;
-      projectName = spec.name;
-    }
-    const changedRef = opts.changed === true ? 'HEAD' : opts.changed || undefined;
-    const focus = [...opts.focus];
-    if (changedRef) {
-      const changed = await changedFiles(root, changedRef);
-      if (!changed.length) io.stderr.write(errColors.yellow(`warning: no files changed vs ${changedRef}\n`));
-      focus.push(...changed);
-    }
-    const outputPath = opts.stdout ? undefined : resolve(io.cwd, opts.output ?? `astpack-output.${OUTPUT_EXTENSIONS[opts.format]}`);
-    const ignore = [...opts.ignore];
-    // Never pack our own output file.
-    if (outputPath) {
-      const rel = toPosix(relative(root, outputPath));
-      if (rel && !rel.startsWith('..')) ignore.push(`/${rel}`);
-    }
-
-    const showProgress = !opts.quiet && !!io.stderr.isTTY;
-    const packOptions: PackOptions = {
-      mode: opts.full ? 'full' : 'skeleton',
-      focus,
-      cwd: io.cwd,
-      placeholder: opts.placeholder,
-      comments: opts.comments,
-      redact: opts.redact,
-      fallback: {
-        ...(opts.fallbackLines !== undefined ? { maxLines: opts.fallbackLines } : {}),
-        ...(opts.fallbackChars !== undefined ? { maxChars: opts.fallbackChars } : {}),
-      },
-      gitignore: opts.gitignore,
-      packignore: opts.packignore,
-      defaultIgnores: opts.defaultIgnores,
-      ignore,
-      include: opts.include,
-      maxFileSize: opts.maxFileSize,
-      followSymlinks: opts.followSymlinks,
-      onProgress: showProgress
-        ? (done, total) => {
-            if (done === total || done % 25 === 0) io.stderr.write(`\r${errColors.dim(`Packing ${done}/${total} files…`)}`);
-          }
-        : undefined,
-    };
-
-    let result = await pack(root, packOptions);
-    if (showProgress) io.stderr.write('\r\u001b[K');
-    for (const target of result.focusOutsideRoot) {
-      io.stderr.write(errColors.yellow(`warning: --focus ${target} is outside ${root}\n`));
-    }
-    if (result.files.length === 0) {
-      io.stderr.write(errColors.yellow(`warning: no files included from ${root} (check your ignore/include rules)\n`));
-    }
-    if (opts.focus.length && !result.files.some((f) => f.focused)) {
-      io.stderr.write(errColors.yellow(`warning: no files matched --focus ${opts.focus.join(', ')}\n`));
-    }
-
-    const diffRef = opts.diff === true ? (changedRef ?? 'HEAD') : opts.diff || undefined;
-    const renderOptions = {
-      projectName,
-      tree: opts.tree,
-      instructions: await readInstructions(opts.instructions, io.cwd),
-      focus: changedRef ? [...opts.focus, `changed vs ${changedRef}`] : opts.focus,
-      version: VERSION,
-      diff: diffRef ? { ref: diffRef, text: maybeRedact(await diffText(root, diffRef), opts.redact) } : undefined,
-    };
-    let document: string;
-    let budget: BudgetReport | undefined;
-    if (opts.maxTokens) {
-      budget = await fitToBudget(result, {
-        maxTokens: opts.maxTokens,
-        render: (r) => render(opts.format, r, renderOptions),
-        comments: opts.comments,
-        placeholder: opts.placeholder,
-        fallback: packOptions.fallback,
-        redact: opts.redact,
-      });
-      result = budget.result;
-      document = budget.document;
-      if (!budget.fits) {
-        const why = budget.focusTokens > opts.maxTokens ? ' (focused files alone exceed it)' : '';
-        io.stderr.write(
-          errColors.yellow(`warning: output is ${formatNumber(budget.tokens)} tokens, over the ${formatNumber(opts.maxTokens)} budget${why}\n`),
-        );
-      }
-    } else {
-      document = render(opts.format, result, renderOptions);
-    }
-
-    const destinations: string[] = [];
-    if (outputPath) {
-      await writeFile(outputPath, document);
-      const shown = toPosix(relative(io.cwd, outputPath));
-      destinations.push(`Wrote ${shown && !shown.startsWith('..') ? shown : outputPath}`);
-    } else {
-      io.stdout.write(document);
-    }
-    if (opts.clipboard) {
-      await copyToClipboard(document);
-      destinations.push('copied to clipboard');
-    }
-
-    if (!opts.quiet) {
-      const stats = computeStats(result, document, { models: opts.models.length ? opts.models : [...DEFAULT_MODELS] });
-      const label = destinations.length ? destinations.join(', ') : 'Wrote to stdout';
-      summaryStream.write(`${renderSummary(stats, { colors, top: opts.top, outputLabel: label, mode: result.mode, budget })}\n`);
-    }
-    return 0;
-  } catch (error) {
-    io.stderr.write(`${errColors.red('error:')} ${(error as Error).message}\n`);
-    return 1;
-  } finally {
-    await Promise.all(cleanups.map((c) => c()));
-  }
+  return exitCode;
 }

@@ -141,7 +141,7 @@ describe('walk', () => {
       'src/new.ts': '',
     });
     const result = await walk(root, { ignore: ['*.test.ts'] });
-    expect(paths(result)).toEqual(['.packignore', 'a.ts', 'src/.astpackignore', 'src/new.ts']);
+    expect(paths(result)).toEqual(['a.ts', 'src/new.ts']);
   });
 
   it('limits output to --include patterns', async () => {

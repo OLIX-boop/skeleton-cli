@@ -1,0 +1,152 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "astpack configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "output": {
+      "type": "string",
+      "description": "Output file (relative to the config file)."
+    },
+    "stdout": {
+      "type": "boolean",
+      "description": "Write the document to stdout instead of a file."
+    },
+    "format": {
+      "type": "string",
+      "enum": [
+        "markdown",
+        "json",
+        "xml"
+      ],
+      "description": "Output format."
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "skeleton",
+        "full"
+      ],
+      "description": "Strip function bodies (skeleton) or include raw source (full)."
+    },
+    "focus": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Files, directories or globs kept as full source."
+    },
+    "clipboard": {
+      "type": "boolean",
+      "description": "Copy the document to the clipboard."
+    },
+    "ignore": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Extra gitignore-style exclude patterns (merged with --ignore)."
+    },
+    "include": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Only include files matching these patterns (merged with --include)."
+    },
+    "gitignore": {
+      "type": "boolean",
+      "description": "Honour .gitignore files."
+    },
+    "packignore": {
+      "type": "boolean",
+      "description": "Honour .packignore / .astpackignore files."
+    },
+    "defaultIgnores": {
+      "type": "boolean",
+      "description": "Apply the built-in excludes."
+    },
+    "maxFileSize": {
+      "type": [
+        "number",
+        "string"
+      ],
+      "description": "Skip files larger than this (bytes or e.g. \"1mb\")."
+    },
+    "fallbackLines": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Max lines kept from unsupported files in skeleton mode."
+    },
+    "fallbackChars": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Max characters kept from unsupported files in skeleton mode."
+    },
+    "placeholder": {
+      "type": "string",
+      "description": "Marker text for stripped bodies."
+    },
+    "comments": {
+      "type": "string",
+      "enum": [
+        "all",
+        "docs",
+        "none"
+      ],
+      "description": "Comments to keep outside focused files."
+    },
+    "maxTokens": {
+      "type": [
+        "number",
+        "string"
+      ],
+      "description": "Token budget for the document (e.g. 100000 or \"100k\")."
+    },
+    "tree": {
+      "type": "boolean",
+      "description": "Include the directory tree."
+    },
+    "instructions": {
+      "type": "string",
+      "description": "Instructions placed at the top (prefix with @ to read a file)."
+    },
+    "followSymlinks": {
+      "type": "boolean",
+      "description": "Follow symbolic links."
+    },
+    "redact": {
+      "type": "boolean",
+      "description": "Mask likely secrets."
+    },
+    "changed": {
+      "type": [
+        "string",
+        "boolean"
+      ],
+      "description": "Focus files changed vs a git ref (true = HEAD)."
+    },
+    "diff": {
+      "type": [
+        "string",
+        "boolean"
+      ],
+      "description": "Include the git diff vs a ref (true = the --changed ref or HEAD)."
+    },
+    "models": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Models to price in the summary."
+    },
+    "top": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Number of largest files listed in the summary."
+    }
+  }
+}
