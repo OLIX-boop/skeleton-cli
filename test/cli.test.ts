@@ -99,6 +99,17 @@ describe('cli', () => {
     expect(two.stdout).toContain('return 1;');
   });
 
+  it('supports --query, listing the matches', async () => {
+    const root = await project();
+    const { stdout, stderr } = await cli(['--stdout', '--no-color', '--query', 'admin login'], root);
+    expect(stdout).toContain('return u === "admin";');
+    expect(stdout).toContain('files matching "admin login"');
+    expect(stderr).toMatch(/Query matches[\s\S]*src\/auth\/login\.ts/);
+    expect(stderr).toContain('login.ts [match]');
+    const none = await cli(['--stdout', '--no-color', '--query', 'zebra'], root);
+    expect(none.stderr).toContain('No files matched --query');
+  });
+
   it('supports --full', async () => {
     const root = await project();
     const { stdout } = await cli(['--stdout', '-q', '--full'], root);

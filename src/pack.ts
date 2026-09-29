@@ -4,6 +4,7 @@ import { transformFile, type FallbackLimits, type FileMode, type Strategy } from
 import type { RedactionHit } from './security/secrets.js';
 import { embeddedForPath, languageForPath } from './languages/index.js';
 import { dependencyGraph, relatedFiles } from './deps.js';
+import { search, topHits, type SearchHit } from './search.js';
 import { mapLimit } from './util/pool.js';
 import { FocusMatcher, walk, type SkippedEntry, type WalkOptions } from './walker/index.js';
 
@@ -17,6 +18,13 @@ export interface PackOptions extends WalkOptions {
    * (what it imports and what imports it). Default 0.
    */
   related?: number;
+  /**
+   * Describe the task in words (e.g. `invoice pdf export`) and the most relevant files are
+   * focused too, ranked by keyword relevance over identifiers and paths.
+   */
+  query?: string;
+  /** Maximum number of files `query` focuses. Default 5. */
+  queryLimit?: number;
   /** Marker text for stripped bodies. */
   placeholder?: string;
   /** Which comments to keep in non-focused files of supported languages (default `all`). */
@@ -47,6 +55,8 @@ export interface PackedFile {
   focused: boolean;
   /** Focused only because it imports, or is imported by, a focus target (`related`). */
   related?: boolean;
+  /** Focused because it matched `query`. */
+  matched?: boolean;
   /** Packaged content. */
   content: string;
   /** Original file content (line endings normalized), used for savings analytics. */
@@ -65,6 +75,8 @@ export interface PackResult {
   skipped: SkippedEntry[];
   /** Focus targets that resolved outside the root. */
   focusOutsideRoot: string[];
+  /** Files `query` focused, best first (absent without a query). */
+  queryHits?: SearchHit[];
 }
 
 /** Code-fence hints for common non-AST file types. */
@@ -106,6 +118,8 @@ export async function readText(absPath: string): Promise<string> {
   return text.includes('\r\n') ? text.replace(/\r\n/g, '\n') : text;
 }
 
+const TEST_PATH = /(^|\/)(tests?|__tests__|spec)\/|[._-](test|spec)\.[^/]+$|(^|\/)test_[^/]+$/;
+
 /** Discover, filter and transform every file under `root`. */
 export async function pack(root: string, options: PackOptions = {}): Promise<PackResult> {
   const mode = options.mode ?? 'skeleton';
@@ -115,6 +129,19 @@ export async function pack(root: string, options: PackOptions = {}): Promise<Pac
   const concurrency = options.concurrency ?? 32;
   const originals = await mapLimit(walked.files, concurrency, (entry) => readText(entry.absPath));
   const targets = new Set(focus.isEmpty ? [] : walked.files.filter((e) => focus.matches(e.path)).map((e) => e.path));
+  let queryHits: SearchHit[] | undefined;
+  if (options.query?.trim()) {
+    // Code the parser understands outranks prose and config that merely mention the words,
+    // and implementation outranks its tests (`related` can pull those in).
+    const documents = walked.files.map((e, i) => ({
+      path: e.path,
+      text: originals[i]!,
+      weight: !(languageForPath(e.path) || embeddedForPath(e.path)) ? 0.4 : TEST_PATH.test(e.path) ? 0.7 : 1,
+    }));
+    queryHits = topHits(search(documents, options.query), options.queryLimit ?? 5);
+  }
+  const matched = new Set(queryHits?.map((h) => h.path).filter((p) => !targets.has(p)));
+  for (const path of matched) targets.add(path);
   let related = new Set<string>();
   if ((options.related ?? 0) > 0 && targets.size) {
     const sources = walked.files.map((e, i) => ({
@@ -146,6 +173,7 @@ export async function pack(root: string, options: PackOptions = {}): Promise<Pac
       strategy: result.strategy,
       focused,
       ...(isRelated ? { related: true } : {}),
+      ...(matched.has(entry.path) ? { matched: true } : {}),
       content: result.content,
       original,
       strippedBodies: result.strippedBodies,
@@ -155,5 +183,12 @@ export async function pack(root: string, options: PackOptions = {}): Promise<Pac
     };
   });
 
-  return { root: walked.root, mode, files, skipped: walked.skipped, focusOutsideRoot: focus.outsideRoot() };
+  return {
+    root: walked.root,
+    mode,
+    files,
+    skipped: walked.skipped,
+    focusOutsideRoot: focus.outsideRoot(),
+    ...(queryHits ? { queryHits } : {}),
+  };
 }

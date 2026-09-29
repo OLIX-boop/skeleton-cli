@@ -46,6 +46,8 @@ export function buildProgram(io: CliIO, setExit: (code: number) => void): Comman
       'also keep as full source the files a focused file imports or is imported by, up to depth hops (default 1)',
       wrapParser(parsePositiveInt),
     )
+    .option('--query <text>', 'describe the task in words; the most relevant files (by identifiers and paths) are focused')
+    .option('--query-limit <n>', 'maximum number of files --query focuses (default 5)', wrapParser(parsePositiveInt))
     .option('-c, --clipboard', 'copy the packed document to the clipboard')
     .option('-i, --ignore <patterns>', 'extra gitignore-style patterns to exclude (repeatable, comma-separated)', collectList)
     .option('--include <patterns>', 'only include files matching these patterns (repeatable, comma-separated)', collectList)

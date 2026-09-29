@@ -40,6 +40,15 @@
       },
       "description": "Files, directories or globs kept as full source."
     },
+    "query": {
+      "type": "string",
+      "description": "Focus the files most relevant to this task description."
+    },
+    "queryLimit": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Maximum number of files the query focuses (default 5)."
+    },
     "related": {
       "type": "number",
       "minimum": 0,

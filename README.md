@@ -249,6 +249,17 @@ astpack --focus "**/*.test.ts"
 astpack --focus "app/[id]/page.tsx"       # existing paths win over glob syntax
 ```
 
+`--query <text>` finds the focus for you: describe the task in plain words and the most relevant files
+(up to `--query-limit`, default 5) are included in full. Files are ranked by keyword relevance (BM25) over
+identifiers and paths, with identifiers split into words (`renderInvoicePdf` → render, invoice, pdf) and
+related forms matched (`invoices`, `rendering`). Code outranks docs, and implementation outranks tests. The
+summary lists the matches and the words each one contains:
+
+```sh
+astpack --query "invoice pdf export" --related      # the matching files and their neighbours in full
+astpack --query "retry logic for failed webhooks" --max-tokens 60k
+```
+
 `--related [depth]` widens the focus along the import graph: the files a focused file imports, and the
 files that import it, are included in full too (one hop by default). They are marked `[related]` in the
 summary, and a token budget compresses them only after every other file:
@@ -407,6 +418,8 @@ This is a safety net, not a guarantee. Keep secrets out of your repository.
 | `--full` | Include raw source without AST transformation. |
 | `--outline` | List only declarations and signatures (one line each) outside focused files. |
 | `--focus <path>` | Keep a file, directory or glob as full source (repeatable). |
+| `--query <text>` | Focus the files most relevant to a task description (keyword ranking over identifiers and paths). |
+| `--query-limit <n>` | Maximum number of files `--query` focuses (default 5). |
 | `--related [depth]` | Also keep in full the files a focused file imports or is imported by, up to `depth` hops (default 1). |
 | `-c, --clipboard` | Copy the document to the clipboard (pbcopy, PowerShell, wl-copy, xclip, xsel). |
 | `-i, --ignore <patterns>` | Extra gitignore-style excludes (repeatable, comma-separated). |

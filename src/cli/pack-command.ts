@@ -284,6 +284,8 @@ export async function packCommand(directory: string, command: Command, io: CliIO
         mode: opts.full ? 'full' : opts.outline ? 'outline' : 'skeleton',
         focus,
         related: opts.related === true ? 1 : opts.related || 0,
+        query: opts.query,
+        queryLimit: opts.queryLimit,
         // Relative --focus paths name files inside a remote repository, not the local cwd.
         cwd: opts.remote ? root : io.cwd,
         placeholder: opts.placeholder,
@@ -311,7 +313,7 @@ export async function packCommand(directory: string, command: Command, io: CliIO
       if (showProgress) io.stderr.write('\r\u001b[K');
       for (const target of result.focusOutsideRoot) warn(io, errColors, `--focus ${target} is outside ${root}`);
       if (result.files.length === 0) warn(io, errColors, `no files included from ${root} (check your ignore/include rules)`);
-      if (opts.focus.length && !result.files.some((f) => f.focused)) {
+      if (opts.focus.length && !result.files.some((f) => f.focused && !f.matched)) {
         warn(io, errColors, `no files matched --focus ${opts.focus.join(', ')}`);
       }
 
@@ -320,7 +322,11 @@ export async function packCommand(directory: string, command: Command, io: CliIO
         projectName,
         tree: opts.tree,
         instructions: await readInstructions(opts.instructions, io.cwd),
-        focus: changedRef ? [...opts.focus, `changed vs ${changedRef}`] : opts.focus,
+        focus: [
+          ...opts.focus,
+          ...(changedRef ? [`changed vs ${changedRef}`] : []),
+          ...(opts.query ? [`files matching "${opts.query}"`] : []),
+        ],
         version: VERSION,
         diff: diffRef ? { ref: diffRef, text: maybeRedact(await diffText(root, diffRef), opts.redact) } : undefined,
         dependencies: opts.deps ? dependencyGraph(result) : undefined,
@@ -403,7 +409,7 @@ export async function packCommand(directory: string, command: Command, io: CliIO
         if (!opts.quiet && initial) {
           const label = !write ? 'Dry run: nothing written' : destinations.length ? destinations.join(', ') : 'Wrote to stdout';
           summaryStream.write(
-            `${renderSummary(stats, { colors, top: opts.top, outputLabel: label, mode: result.mode, budget, parts: parts?.parts.map((p) => p.tokens) })}\n`,
+            `${renderSummary(stats, { colors, top: opts.top, outputLabel: label, mode: result.mode, budget, parts: parts?.parts.map((p) => p.tokens), queryHits: result.queryHits })}\n`,
           );
         }
       }

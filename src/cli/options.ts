@@ -11,6 +11,8 @@ export interface PackCliOptions {
   outline?: boolean;
   focus: string[];
   related?: number | boolean;
+  query?: string;
+  queryLimit?: number;
   clipboard?: boolean;
   ignore: string[];
   include: string[];

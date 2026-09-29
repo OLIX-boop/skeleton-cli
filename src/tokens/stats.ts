@@ -13,6 +13,8 @@ export interface FileTokens {
   focused: boolean;
   /** Focused only as a neighbour of a focus target in the import graph. */
   related?: boolean;
+  /** Focused because it matched `--query`. */
+  matched?: boolean;
 }
 
 export interface EncodingTotals {
@@ -72,7 +74,7 @@ export function computeStats(result: PackResult, output: string, options: StatsO
       const packed = counter.count(file.content, 'cl100k_base');
       const original = file.content === file.original ? packed : counter.count(file.original, 'cl100k_base');
       delta += original - packed;
-      files.push({ path: file.path, tokens: packed, originalTokens: original, strategy: file.strategy, focused: file.focused, ...(file.related ? { related: true } : {}) });
+      files.push({ path: file.path, tokens: packed, originalTokens: original, strategy: file.strategy, focused: file.focused, ...(file.related ? { related: true } : {}), ...(file.matched ? { matched: true } : {}) });
     }
     const clOutput = counter.count(output, 'cl100k_base');
     const o2Output = counter.count(output, 'o200k_base');
