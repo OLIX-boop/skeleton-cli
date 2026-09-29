@@ -5,6 +5,7 @@ export function fileNote(file: PackedFile): string | undefined {
   if (file.focused) return '[focus]';
   if (file.strategy === 'truncated') return '[truncated]';
   if (file.strategy === 'omitted') return '[omitted]';
+  if (file.strategy === 'outline') return '[outline]';
   if (file.strategy === 'full' && file.language) return '[full]';
   return undefined;
 }
@@ -24,13 +25,17 @@ export function legend(result: PackResult): string {
   const hasFocus = result.files.some((f) => f.focused);
   const hasTruncated = result.files.some((f) => f.strategy === 'truncated');
   const hasOmitted = result.files.some((f) => f.strategy === 'omitted');
+  const hasOutline = result.files.some((f) => f.strategy === 'outline');
   const hasStrippedComments = result.files.some((f) => f.strippedComments > 0);
   const parts: string[] = [];
+  if (hasOutline) {
+    parts.push('Files marked [outline] list only their declarations and signatures, one per line, with members indented under their class or module.');
+  }
   if (hasSkeleton) {
     parts.push(
       `Source files are shown in skeleton form: function and method bodies were replaced with \`...\` placeholders, while imports, types, signatures and class members are intact${hasStrippedComments ? '' : ', as are comments'}.`,
     );
-  } else {
+  } else if (!hasOutline) {
     parts.push('All files are included as full source.');
   }
   if (hasStrippedComments) parts.push('Some comments were removed to save space.');

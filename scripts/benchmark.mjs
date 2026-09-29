@@ -29,12 +29,13 @@ for (const [repo, language] of repos) {
       ['full', { mode: 'full' }],
       ['skeleton', { mode: 'skeleton' }],
       ['bare', { mode: 'skeleton', comments: 'none' }],
+      ['outline', { mode: 'outline' }],
     ]) {
       const result = await pack(clone.dir, options);
       const document = render('markdown', result, { projectName: spec.name });
       variants[name] = { tokens: counter.count(document), files: result.files.length };
     }
-    const seconds = (performance.now() - started) / 1000 / 3;
+    const seconds = (performance.now() - started) / 1000 / 4;
     const saved = (v) => `${Math.round((1 - v.tokens / variants.full.tokens) * 100)}%`;
     rows.push([
       `[${repo}](https://github.com/${repo})`,
@@ -43,6 +44,7 @@ for (const [repo, language] of repos) {
       variants.full.tokens.toLocaleString('en-US'),
       `${variants.skeleton.tokens.toLocaleString('en-US')} (−${saved(variants.skeleton)})`,
       `${variants.bare.tokens.toLocaleString('en-US')} (−${saved(variants.bare)})`,
+      `${variants.outline.tokens.toLocaleString('en-US')} (−${saved(variants.outline)})`,
       `${seconds.toFixed(1)}s`,
     ]);
     process.stderr.write('done\n');
@@ -52,7 +54,7 @@ for (const [repo, language] of repos) {
 }
 counter.free();
 
-const header = ['Repository', 'Language', 'Files', 'Raw (--full)', 'Skeleton', 'Skeleton + --comments none', 'Time'];
+const header = ['Repository', 'Language', 'Files', 'Raw (--full)', 'Skeleton', 'Skeleton + --comments none', '--outline', 'Time'];
 console.log(`| ${header.join(' | ')} |`);
 console.log(`| ${header.map((h, i) => (i >= 2 ? '---:' : '---')).join(' | ')} |`);
 for (const row of rows) console.log(`| ${row.join(' | ')} |`);

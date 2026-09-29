@@ -15,12 +15,18 @@ function bodyReplacement(node: Node, placeholder: string): BodyReplacement | nul
   return null;
 }
 
+const cOutline = {
+  containers: ['namespace_definition', 'class_specifier', 'linkage_specification'],
+  declarations: ['struct_specifier', 'enum_specifier', 'union_specifier', 'type_definition', 'preproc_function_def'],
+};
+
 export const c: LanguageSpec = {
   id: 'c',
   fence: 'c',
   grammar: 'tree-sitter-c',
   extensions: ['.c', '.h'],
   bodyReplacement,
+  outline: cOutline,
   candidates: ['function_definition', 'lambda_expression'],
 };
 
@@ -30,5 +36,6 @@ export const cpp: LanguageSpec = {
   grammar: 'tree-sitter-cpp',
   extensions: ['.cpp', '.cc', '.cxx', '.c++', '.hpp', '.hh', '.hxx', '.h++', '.ipp', '.tpp', '.inl'],
   bodyReplacement,
+  outline: cOutline,
   candidates: ['function_definition', 'lambda_expression'],
 };

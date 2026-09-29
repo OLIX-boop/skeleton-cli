@@ -24,4 +24,5 @@ export const swift: LanguageSpec = {
   extensions: ['.swift'],
   bodyReplacement,
   candidates: [...WITH_BODY, 'computed_property'],
+  outline: { containers: ['class_declaration', 'protocol_declaration'], declarations: ['protocol_function_declaration'] },
 };

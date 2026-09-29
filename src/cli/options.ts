@@ -8,6 +8,7 @@ export interface PackCliOptions {
   format: OutputFormat;
   skeleton?: boolean;
   full?: boolean;
+  outline?: boolean;
   focus: string[];
   clipboard?: boolean;
   ignore: string[];

@@ -52,3 +52,4 @@ export { AstpackMcpServer, serveStdio, type ServerOptions } from './mcp/server.j
 export type { CommentMode } from './languages/types.js';
 export { VERSION } from './version.js';
 export { dependencyGraph, mostImported, renderGraph, type DependencyGraph } from './deps.js';
+export { outline, type OutlineResult } from './engine/outline.js';

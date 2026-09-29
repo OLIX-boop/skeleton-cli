@@ -6,7 +6,7 @@ import { mapLimit } from './util/pool.js';
 import { FocusMatcher, walk, type SkippedEntry, type WalkOptions } from './walker/index.js';
 
 export interface PackOptions extends WalkOptions {
-  /** `skeleton` (default) strips bodies; `full` includes raw source. */
+  /** `skeleton` (default) strips bodies; `full` includes raw source; `outline` lists declarations only. */
   mode?: FileMode;
   /** Files, directories or globs kept as full source while everything else is skeletonized. */
   focus?: readonly string[];
@@ -112,7 +112,8 @@ export async function pack(root: string, options: PackOptions = {}): Promise<Pac
       path: entry.path,
       size: entry.size,
       language: result.language?.id,
-      fence: result.language?.fence ?? fenceFor(entry.path),
+      // Outlines aren't valid code in the file's language; don't highlight them as such.
+      fence: result.strategy === 'outline' ? 'text' : (result.language?.fence ?? fenceFor(entry.path)),
       strategy: result.strategy,
       focused,
       content: result.content,

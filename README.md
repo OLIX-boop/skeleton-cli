@@ -18,7 +18,8 @@ npx astpack                      # pack the current directory → astpack-output
 npx astpack --focus src/auth -c  # src/auth in full, everything else as a skeleton, copied to the clipboard
 ```
 
-On real projects that is **49–89% fewer tokens** than packing raw source ([benchmarks](#benchmarks)).
+On real projects that is **49–89% fewer tokens** than packing raw source, and up to 92% with `--outline`
+([benchmarks](#benchmarks)).
 
 ---
 
@@ -28,7 +29,7 @@ On real projects that is **49–89% fewer tokens** than packing raw source ([ben
 - [Features](#features)
 - [Installation](#installation)
 - [Usage](#usage)
-  - [Modes: skeleton, focus, full](#modes-skeleton-focus-full)
+  - [Modes: skeleton, focus, full, outline](#modes-skeleton-focus-full-outline)
   - [Working with git](#working-with-git)
   - [Token budgets and splitting](#token-budgets-and-splitting)
   - [Comments](#comments)
@@ -177,8 +178,9 @@ astpack summary
 - **Focus mode** — keep chosen files, directories or globs verbatim while the rest of the project is a skeleton.
 - **Git-aware** — `--changed main` focuses everything your branch touched; `--diff` embeds the diff itself;
   `--remote owner/repo` packs any repository through a shallow clone.
+- **Outline mode** — `--outline` turns the rest of the repo into a compact symbol map (like Aider's repo map).
 - **Token budgets** — `--max-tokens 100k` compresses progressively (skeleton → doc comments only → no
-  comments → omit files, tests and docs first) until the document fits. `--split-tokens 32k` writes it as parts.
+  comments → outline → omit files, tests and docs first) until the document fits. `--split-tokens 32k` writes it as parts.
 - **Accurate analytics** — exact `cl100k_base` and `o200k_base` token counts (tiktoken's encodings, via the
   pure-JS [`gpt-tokenizer`](https://github.com/niieani/gpt-tokenizer); parity with `tiktoken` is tested),
   raw-vs-packed savings, per-model input cost and the largest files.
@@ -226,13 +228,14 @@ astpack --instructions @prompts/review.md # read the instructions from a file
 astpack --watch --focus src/checkout      # keep astpack-output.md up to date while you work
 ```
 
-### Modes: skeleton, focus, full
+### Modes: skeleton, focus, full, outline
 
 | Mode | Command | What you get |
 | --- | --- | --- |
 | Skeleton (default) | `astpack` or `astpack --skeleton` | Every supported file with implementation bodies replaced by a placeholder; everything structural kept. |
 | Focus | `astpack --focus <path>` | Focused files are included verbatim; all others as skeletons. Ideal for debugging one area with the rest of the app as context. |
 | Full | `astpack --full` | Raw source for every file, like a classic packer (comment stripping and budgets still apply). |
+| Outline | `astpack --outline` | A repo map: one line per class, interface, function and method signature, members indented under their container. The most compact view of an unfamiliar codebase. |
 
 `--focus` takes files, directories and globs, and can be repeated:
 
@@ -240,6 +243,16 @@ astpack --watch --focus src/checkout      # keep astpack-output.md up to date wh
 astpack --focus src/billing --focus src/api/invoices.ts
 astpack --focus "**/*.test.ts"
 astpack --focus "app/[id]/page.tsx"       # existing paths win over glob syntax
+```
+
+An outline looks like this:
+
+```text
+export interface BudgetOptions
+  maxTokens: number
+  render: (result: PackResult) => string
+  comments?: CommentMode
+export async function fitToBudget(input: PackResult, options: BudgetOptions): Promise<BudgetReport>
 ```
 
 Files in languages astpack can't parse (Markdown, YAML, SQL, …) are included as-is up to 200 lines /
@@ -270,7 +283,8 @@ savings first, re-measuring the exact document after each step:
 1. full source → skeleton,
 2. all comments → documentation comments only,
 3. → no comments,
-4. omit files — tests and fixtures first, then docs, then other non-code files, then code.
+4. → outline (signatures only),
+5. omit files — tests and fixtures first, then docs, then other non-code files, then code.
 
 Omitted files still appear in the directory tree marked `[omitted]`, so the model knows they exist.
 `--split-tokens` cuts only between files and puts the tree, instructions and diff in part 1.
@@ -347,6 +361,7 @@ This is a safety net, not a guarantee. Keep secrets out of your repository.
 | `-f, --format <format>` | `markdown` (default), `xml` or `json`. |
 | `-s, --skeleton` | Strip function bodies from every supported file (default). |
 | `--full` | Include raw source without AST transformation. |
+| `--outline` | List only declarations and signatures (one line each) outside focused files. |
 | `--focus <path>` | Keep a file, directory or glob as full source (repeatable). |
 | `-c, --clipboard` | Copy the document to the clipboard (pbcopy, PowerShell, wl-copy, xclip, xsel). |
 | `-i, --ignore <patterns>` | Extra gitignore-style excludes (repeatable, comma-separated). |
@@ -417,7 +432,7 @@ pack code themselves:
 
 | Tool | What it does |
 | --- | --- |
-| `pack_codebase` | The packed document for a directory: `focus`, `changed`, `mode`, `comments`, `include`, `ignore`, `format`, `maxTokens`, `deps`. |
+| `pack_codebase` | The packed document for a directory: `focus`, `changed`, `mode` (`skeleton`/`full`/`outline`), `comments`, `include`, `ignore`, `format`, `maxTokens`, `deps`. |
 | `estimate_tokens` | Packed vs raw token counts and the largest files, without the document, to pick focus and budgets. |
 | `skeleton_file` | One file's skeleton: a cheap way to read its API. |
 
@@ -489,14 +504,14 @@ matching code-fence language.
 Default settings, shallow clones, cl100k_base tokens for the complete Markdown document
 (`node scripts/benchmark.mjs`):
 
-| Repository | Language | Files | Raw (`--full`) | Skeleton | Skeleton + `--comments none` | Time |
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
-| [expressjs/express](https://github.com/expressjs/express) | JavaScript | 213 | 196,492 | 65,301 (−67%) | 55,614 (−72%) | 0.4s |
-| [colinhacks/zod](https://github.com/colinhacks/zod) | TypeScript | 685 | 2,532,740 | 563,404 (−78%) | 500,923 (−80%) | 3.5s |
-| [psf/requests](https://github.com/psf/requests) | Python | 115 | 720,722 | 94,390 (−87%) | 75,880 (−89%) | 0.4s |
-| [spf13/cobra](https://github.com/spf13/cobra) | Go | 64 | 168,338 | 48,237 (−71%) | 34,133 (−80%) | 0.2s |
-| [BurntSushi/ripgrep](https://github.com/BurntSushi/ripgrep) | Rust | 227 | 919,228 | 406,790 (−56%) | 302,923 (−67%) | 1.2s |
-| [google/gson](https://github.com/google/gson) | Java | 312 | 523,135 | 267,295 (−49%) | 157,362 (−70%) | 0.8s |
+| Repository | Language | Files | Raw (`--full`) | Skeleton | Skeleton + `--comments none` | `--outline` | Time |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| [expressjs/express](https://github.com/expressjs/express) | JavaScript | 213 | 196,492 | 65,301 (−67%) | 55,614 (−72%) | 35,366 (−82%) | 0.4s |
+| [colinhacks/zod](https://github.com/colinhacks/zod) | TypeScript | 685 | 2,532,748 | 563,412 (−78%) | 500,931 (−80%) | 368,730 (−85%) | 2.5s |
+| [psf/requests](https://github.com/psf/requests) | Python | 115 | 720,722 | 94,390 (−87%) | 75,880 (−89%) | 57,998 (−92%) | 0.3s |
+| [spf13/cobra](https://github.com/spf13/cobra) | Go | 64 | 168,338 | 48,237 (−71%) | 34,133 (−80%) | 28,178 (−83%) | 0.2s |
+| [BurntSushi/ripgrep](https://github.com/BurntSushi/ripgrep) | Rust | 227 | 919,228 | 406,790 (−56%) | 302,923 (−67%) | 211,207 (−77%) | 0.9s |
+| [google/gson](https://github.com/google/gson) | Java | 312 | 523,135 | 267,295 (−49%) | 157,362 (−70%) | 103,144 (−80%) | 0.7s |
 
 "Time" is packing only; token counting for the summary adds roughly a second per million characters.
 

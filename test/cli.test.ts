@@ -75,6 +75,15 @@ describe('cli', () => {
     expect(await readFile(join(root, 'pack.md'), 'utf8')).not.toContain('### `pack.md`');
   });
 
+  it('supports --outline, keeping focused files in full', async () => {
+    const root = await project();
+    const { stdout } = await cli(['--stdout', '-q', '--outline', '--focus', 'src/db.py'], root);
+    expect(stdout).toContain('### `src/auth/login.ts` [outline]');
+    expect(stdout).toContain('```text\nexport function login(u: string): boolean\n```');
+    expect(stdout).toContain('return open(url)');
+    expect((await cli(['--stdout', '--outline', '--full'], root)).code).toBe(1);
+  });
+
   it('supports --full', async () => {
     const root = await project();
     const { stdout } = await cli(['--stdout', '-q', '--full'], root);

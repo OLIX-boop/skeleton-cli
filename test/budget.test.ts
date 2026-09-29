@@ -87,6 +87,20 @@ describe('fitToBudget', () => {
     expect(report.changes.every((c) => c.to !== 'omitted')).toBe(true);
   });
 
+  it('uses outlines before omitting code files', async () => {
+    const many = (prefix: string) =>
+      Array.from({ length: 40 }, (_, i) => `export function ${prefix}${i}(input: number): number {\n  return input * ${i};\n}\n`).join('');
+    const t = await makeTree({ 'src/a.ts': many('a'), 'src/b.ts': many('b') });
+    cleanups.push(t.cleanup);
+    const result = await pack(t.root, { mode: 'skeleton' });
+    const skeleton = count(md(result));
+    const report = await fitToBudget(result, { maxTokens: skeleton - 150, render: md });
+    expect(report.fits).toBe(true);
+    expect(report.changes.map((c) => c.to)).toContain('outline');
+    expect(report.changes.every((c) => c.to !== 'omitted')).toBe(true);
+    expect(report.document).toContain('[outline]');
+  });
+
   it('reports when the budget cannot be met', async () => {
     const root = await project();
     const result = await pack(root, { mode: 'full', focus: ['src'], cwd: root });

@@ -22,4 +22,5 @@ export const dart: LanguageSpec = {
   extensions: ['.dart'],
   bodyReplacement,
   candidates: ['function_body'],
+  outline: { containers: ['class_definition', 'mixin_declaration', 'extension_declaration'], declarations: ['enum_declaration'] },
 };

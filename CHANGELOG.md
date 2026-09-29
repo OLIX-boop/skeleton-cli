@@ -20,7 +20,7 @@ First release.
   lockfiles, binaries, build output and likely secrets.
 - Markdown, XML and JSON output; `--stdout`, `--clipboard`, `--instructions`, `--no-tree`.
 - Token analytics for `cl100k_base` and `o200k_base`, savings versus raw source, and per-model input cost.
-- `--comments all|docs|none`, `--max-tokens` budgets, `--split-tokens` part files, `--deps` import graph.
+- `--outline` repo-map mode (also a budget step), `--comments all|docs|none`, `--max-tokens` budgets, `--split-tokens` part files, `--deps` import graph.
 - Git integration: `--changed`, `--diff`, `--remote`.
 - Secret redaction (on by default, `--no-redact`).
 - `astpack.config.json` / `.astpackrc` with a JSON Schema, `astpack init`.

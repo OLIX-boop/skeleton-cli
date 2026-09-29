@@ -30,6 +30,8 @@ function bodyReplacement(node: Node, placeholder: string): BodyReplacement | nul
   return { node: block, text: `do\n${indent}  # ${placeholder}\n${indent}end` };
 }
 
+const MODULES = new Set(['defmodule', 'defprotocol', 'defimpl']);
+
 export const elixir: LanguageSpec = {
   id: 'elixir',
   fence: 'elixir',
@@ -37,4 +39,7 @@ export const elixir: LanguageSpec = {
   extensions: ['.ex', '.exs'],
   bodyReplacement,
   candidates: ['call'],
+  outline: {
+    isContainer: (node) => node.type === 'call' && MODULES.has(node.childForFieldName('target')?.text ?? ''),
+  },
 };

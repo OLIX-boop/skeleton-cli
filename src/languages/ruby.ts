@@ -38,4 +38,5 @@ export const ruby: LanguageSpec = {
   extensions: ['.rb', '.rake', '.gemspec', '.ru'],
   bodyReplacement,
   candidates: ['method', 'singleton_method', 'call'],
+  outline: { containers: ['class', 'module', 'singleton_class'] },
 };

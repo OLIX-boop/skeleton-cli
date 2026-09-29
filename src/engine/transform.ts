@@ -3,9 +3,11 @@ import { createHash } from 'node:crypto';
 import type { CommentMode } from '../languages/types.js';
 import { LruCache } from '../util/lru.js';
 import { redactSecrets, type RedactionHit } from '../security/secrets.js';
+import { outline } from './outline.js';
 import { skeletonize } from './skeleton.js';
 
-export type FileMode = 'skeleton' | 'full';
+/** `full` keeps source, `skeleton` strips bodies, `outline` keeps only declaration signatures. */
+export type FileMode = 'skeleton' | 'full' | 'outline';
 
 /** How a file's content was produced. */
 export type Strategy =
@@ -13,6 +15,8 @@ export type Strategy =
   | 'skeleton'
   /** Included verbatim (full mode, focus target, or small unsupported file). */
   | 'full'
+  /** Only the declarations and signatures, one per line. */
+  | 'outline'
   /** Unsupported language in skeleton mode, cut at the fallback limit. */
   | 'truncated'
   /** Dropped to fit a token budget; listed in the tree only. */
@@ -102,6 +106,39 @@ async function transformEmbedded(content: string, spec: EmbeddedSpec, bodies: bo
   return { content: out + content.slice(cursor), strippedBodies, strippedComments, parseErrors };
 }
 
+/** Outline a supported file (script regions only for embedded formats), or `undefined`. */
+async function outlineContent(filePath: string, content: string): Promise<TransformedFile | undefined> {
+  const embedded = embeddedForPath(filePath);
+  const language = languageForPath(filePath);
+  if (!embedded && !language) return undefined;
+  try {
+    let text = '';
+    let hasErrors = false;
+    if (embedded) {
+      for (const region of embedded.regions(content)) {
+        const result = await outline(content.slice(region.start, region.end), LANGUAGES[region.language]);
+        text += result.text;
+        hasErrors ||= result.hasErrors;
+      }
+    } else {
+      const result = await outline(content, language!);
+      text = result.text;
+      hasErrors = result.hasErrors;
+    }
+    return {
+      content: text,
+      strategy: 'outline',
+      language: embedded ? { id: embedded.id, fence: embedded.fence } : language,
+      strippedBodies: 0,
+      strippedComments: 0,
+      redactions: [],
+      parseErrors: hasErrors,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 /** A grammar crashed on this input: fall back to what we'd do for an unknown language. */
 function crashFallback(content: string, language: FileLanguage, bodies: boolean, options: TransformOptions): TransformedFile {
   const cut = bodies ? truncate(content, { ...DEFAULT_FALLBACK, ...options.fallback }) : { content, truncated: false };
@@ -152,6 +189,12 @@ export async function transformFile(filePath: string, content: string, options: 
 }
 
 async function transformContent(filePath: string, content: string, options: TransformOptions): Promise<TransformedFile> {
+  if (options.mode === 'outline') {
+    const result = await outlineContent(filePath, content);
+    if (result) return result;
+    // No outline for this file type: treat it like skeleton mode (truncate non-code files).
+    return transformContent(filePath, content, { ...options, mode: 'skeleton' });
+  }
   const comments = options.comments ?? 'all';
   const bodies = options.mode === 'skeleton';
   const verbatim = (language?: FileLanguage): TransformedFile => ({

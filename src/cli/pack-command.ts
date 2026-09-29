@@ -44,7 +44,10 @@ export function applyConfig(opts: PackCliOptions, config: AstpackConfig, fromCli
   for (const [key, value] of Object.entries(config) as [keyof AstpackConfig, unknown][]) {
     switch (key) {
       case 'mode':
-        if (!fromCli('skeleton') && !fromCli('full')) next.full = value === 'full';
+        if (!fromCli('skeleton') && !fromCli('full') && !fromCli('outline')) {
+          next.full = value === 'full';
+          next.outline = value === 'outline';
+        }
         break;
       case 'ignore':
       case 'include':
@@ -215,7 +218,9 @@ export async function packCommand(directory: string, command: Command, io: CliIO
     const summaryStream = opts.stdout ? io.stderr : io.stdout;
     const colors = makeColors(opts.color && shouldColor(summaryStream));
 
-    if (opts.skeleton && opts.full) throw new Error('--skeleton and --full are mutually exclusive');
+    if ([opts.skeleton, opts.full, opts.outline].filter(Boolean).length > 1) {
+      throw new Error('--skeleton, --full and --outline are mutually exclusive');
+    }
     if (opts.splitTokens && (opts.stdout || opts.clipboard)) throw new Error('--split-tokens writes files; it cannot be combined with --stdout or --clipboard');
     const unknownModels = opts.models.filter((m) => !findModel(m));
     if (unknownModels.length) {
@@ -261,7 +266,7 @@ export async function packCommand(directory: string, command: Command, io: CliIO
 
       const showProgress = !opts.quiet && !!io.stderr.isTTY;
       const packOptions: PackOptions = {
-        mode: opts.full ? 'full' : 'skeleton',
+        mode: opts.full ? 'full' : opts.outline ? 'outline' : 'skeleton',
         focus,
         // Relative --focus paths name files inside a remote repository, not the local cwd.
         cwd: opts.remote ? root : io.cwd,

@@ -23,4 +23,5 @@ export const go: LanguageSpec = {
   extensions: ['.go'],
   bodyReplacement,
   candidates: ['function_declaration', 'method_declaration', 'func_literal'],
+  outline: { declarations: ['type_declaration'] },
 };

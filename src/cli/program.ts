@@ -35,6 +35,7 @@ export function buildProgram(io: CliIO, setExit: (code: number) => void): Comman
     .addOption(new Option('-f, --format <format>', 'output format').choices(OUTPUT_FORMATS as string[]).default('markdown'))
     .option('-s, --skeleton', 'strip function bodies from every supported file (default)')
     .option('--full', 'include raw source without AST transformation')
+    .option('--outline', 'list only declarations and signatures (one line each) outside focused files')
     .option('--focus <path>', 'keep a file, directory or glob as full source; skeletonize the rest (repeatable)', collect)
     .option('-c, --clipboard', 'copy the packed document to the clipboard')
     .option('-i, --ignore <patterns>', 'extra gitignore-style patterns to exclude (repeatable, comma-separated)', collectList)

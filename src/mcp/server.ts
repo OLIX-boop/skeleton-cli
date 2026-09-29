@@ -231,7 +231,11 @@ export class AstpackMcpServer {
         description: 'Files, directories or globs (relative to `path`) to include as full source.',
       },
       changed: { type: 'string', description: 'Also focus files changed vs this git ref (e.g. "HEAD" or "main").' },
-      mode: { type: 'string', enum: ['skeleton', 'full'], description: 'skeleton (default) strips function bodies; full keeps them.' },
+      mode: {
+        type: 'string',
+        enum: ['skeleton', 'full', 'outline'],
+        description: 'skeleton (default) strips function bodies; full keeps them; outline lists declarations only.',
+      },
       comments: commentsSchema,
       include: { type: 'array', items: { type: 'string' }, description: 'Only include files matching these gitignore-style patterns.' },
       ignore: { type: 'array', items: { type: 'string' }, description: 'Extra gitignore-style patterns to exclude.' },
@@ -240,7 +244,7 @@ export class AstpackMcpServer {
 
     const runPack = async (args: Record<string, unknown>) => {
       // Validate every argument before touching the file system.
-      const mode = oneOf(args, 'mode', ['skeleton', 'full'] as const) ?? 'skeleton';
+      const mode = oneOf(args, 'mode', ['skeleton', 'full', 'outline'] as const) ?? 'skeleton';
       const comments = oneOf<CommentMode>(args, 'comments', ['all', 'docs', 'none']);
       const focusArgs = strList(args, 'focus');
       const include = strList(args, 'include');

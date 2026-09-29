@@ -5,8 +5,8 @@ import { TokenCounter, type EncodingName } from './tokens/index.js';
 
 /** One rung of the compression ladder. */
 interface Level {
-  name: 'full' | 'skeleton' | 'docs' | 'bare' | 'omitted';
-  mode?: 'full' | 'skeleton';
+  name: 'full' | 'skeleton' | 'docs' | 'bare' | 'outline' | 'omitted';
+  mode?: 'full' | 'skeleton' | 'outline';
   comments?: CommentMode;
 }
 
@@ -69,6 +69,9 @@ function ladder(start: PackedFile, baseComments: CommentMode): Level[] {
     levels.push({ name: 'skeleton', mode: 'skeleton', comments: baseComments });
     if (baseComments === 'all') levels.push({ name: 'docs', mode: 'skeleton', comments: 'docs' });
     if (baseComments !== 'none') levels.push({ name: 'bare', mode: 'skeleton', comments: 'none' });
+    levels.push({ name: 'outline', mode: 'outline' });
+  } else if (start.strategy === 'outline') {
+    levels.push({ name: 'outline', mode: 'outline' });
   } else {
     levels.push({ name: 'skeleton', mode: 'skeleton' });
   }
@@ -86,7 +89,7 @@ interface Candidate {
 
 /**
  * Compress a pack until its rendered document fits in `maxTokens`, degrading files one
- * phase at a time (full → skeleton → doc-comments only → no comments → omitted) and
+ * phase at a time (full → skeleton → doc-comments only → no comments → outline → omitted) and
  * choosing the largest savings first within each phase. Focused files are never touched.
  */
 export async function fitToBudget(input: PackResult, options: BudgetOptions): Promise<BudgetReport> {
@@ -155,7 +158,7 @@ export async function fitToBudget(input: PackResult, options: BudgetOptions): Pr
     // Each phase re-measures the exact document and applies just enough moves (largest
     // savings first) to cover the remaining gap; the legend and headings shift a little as
     // files change, so a few measurements per phase converge on the budget.
-    const phases: Level['name'][] = ['skeleton', 'docs', 'bare', 'omitted'];
+    const phases: Level['name'][] = ['skeleton', 'docs', 'bare', 'outline', 'omitted'];
     for (const phase of phases) {
       while (tokens > options.maxTokens) {
         const moves: { c: Candidate; to: number; saving: number; rank: number }[] = [];

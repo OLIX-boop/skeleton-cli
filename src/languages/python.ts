@@ -79,6 +79,7 @@ export const python: LanguageSpec = {
   extensions: ['.py', '.pyi', '.pyw'],
   bodyReplacement,
   candidates: ['function_definition'],
+  outline: { containers: ['class_definition'] },
   docReplacement,
   docCandidates: ['expression_statement'],
 };

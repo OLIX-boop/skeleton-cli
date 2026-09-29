@@ -68,6 +68,15 @@ export interface LanguageSpec {
   docReplacement?(node: Node): string | undefined;
   /** Node types `docReplacement` may act on. */
   docCandidates?: readonly string[];
+  /** Symbol outline rules (see engine/outline.ts). */
+  outline?: {
+    /** Types whose members are listed nested under a header (classes, modules, impls…). */
+    containers?: readonly string[];
+    /** Types summarised by their first line (type aliases, enums, structs…). */
+    declarations?: readonly string[];
+    /** Dynamic container check, for grammars where containers are generic calls (Elixir). */
+    isContainer?(node: Node): boolean;
+  };
   /** Language name used for Markdown code fences. */
   fence: string;
 }

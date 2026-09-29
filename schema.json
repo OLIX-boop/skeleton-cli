@@ -28,9 +28,10 @@
       "type": "string",
       "enum": [
         "skeleton",
-        "full"
+        "full",
+        "outline"
       ],
-      "description": "Strip function bodies (skeleton) or include raw source (full)."
+      "description": "Strip function bodies (skeleton), include raw source (full) or list declarations only (outline)."
     },
     "focus": {
       "type": "array",

@@ -10,7 +10,7 @@ export interface AstpackConfig {
   output?: string;
   stdout?: boolean;
   format?: 'markdown' | 'json' | 'xml';
-  mode?: 'skeleton' | 'full';
+  mode?: 'skeleton' | 'full' | 'outline';
   focus?: string[];
   clipboard?: boolean;
   ignore?: string[];
@@ -42,7 +42,7 @@ export const CONFIG_SCHEMA: Record<keyof AstpackConfig, { kind: Kind; descriptio
   output: { kind: 'string', description: 'Output file (relative to the config file).' },
   stdout: { kind: 'boolean', description: 'Write the document to stdout instead of a file.' },
   format: { kind: ['markdown', 'json', 'xml'], description: 'Output format.' },
-  mode: { kind: ['skeleton', 'full'], description: 'Strip function bodies (skeleton) or include raw source (full).' },
+  mode: { kind: ['skeleton', 'full', 'outline'], description: 'Strip function bodies (skeleton), include raw source (full) or list declarations only (outline).' },
   focus: { kind: 'string[]', description: 'Files, directories or globs kept as full source.' },
   clipboard: { kind: 'boolean', description: 'Copy the document to the clipboard.' },
   ignore: { kind: 'string[]', description: 'Extra gitignore-style exclude patterns (merged with --ignore).' },
