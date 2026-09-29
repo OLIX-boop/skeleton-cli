@@ -92,11 +92,15 @@ export interface WatchReport {
   destination: string;
   /** Files written by the run (never trigger a rebuild). */
   outputs: string[];
+  /** Paths the pack ignored (directories end with `/`); changes under them are skipped. */
+  ignored?: string[];
 }
 
 export interface WatchOptions {
   root: string;
   outputs: readonly string[];
+  /** Root-relative POSIX paths the pack ignores (directories end with `/`). */
+  ignored?: readonly string[];
   rerun: () => Promise<WatchReport>;
   io: CliIO;
   colors: Colors;
@@ -111,11 +115,14 @@ const WATCH_IGNORED_SEGMENTS = new Set(['.git', 'node_modules', '.hg', '.svn']);
 export function watchLoop(options: WatchOptions): Promise<void> {
   const { root, io, colors, signal } = options;
   const own = options.outputs.map((p) => {
-    // Part files: out.md -> out.part1.md, out.part2.md, ...
-    const dot = p.lastIndexOf('.');
-    return { exact: p, partPrefix: dot > 0 ? `${p.slice(0, dot)}.part` : `${p}.part` };
+    // Part files share partPath()'s naming: out.md -> out.part1.md, out.part2.md, ...
+    const template = partPath(p, 0);
+    const marker = template.lastIndexOf('.part0');
+    return { exact: p, partPrefix: template.slice(0, marker + '.part'.length) };
   });
   const isOwnOutput = (abs: string) => own.some((o) => abs === o.exact || abs.startsWith(o.partPrefix));
+  let ignored = options.ignored ?? [];
+  const isIgnored = (rel: string) => ignored.some((i) => (i.endsWith('/') ? rel.startsWith(i) || `${rel}/` === i : rel === i));
 
   return new Promise<void>((resolveDone) => {
     io.stderr.write(colors.dim(`Watching ${root} for changes (Ctrl+C to stop)…\n`));
@@ -132,6 +139,7 @@ export function watchLoop(options: WatchOptions): Promise<void> {
       const started = Date.now();
       try {
         const r = await options.rerun();
+        if (r.ignored) ignored = r.ignored;
         const time = new Date().toLocaleTimeString('en-GB');
         const saved = r.savedRatio > 0 ? colors.dim(` (−${formatPercent(r.savedRatio)})`) : '';
         io.stderr.write(
@@ -156,7 +164,7 @@ export function watchLoop(options: WatchOptions): Promise<void> {
       if (filename) {
         const rel = toPosix(String(filename));
         if (rel.split('/').some((seg) => WATCH_IGNORED_SEGMENTS.has(seg))) return;
-        if (isOwnOutput(resolve(root, rel))) return;
+        if (isOwnOutput(resolve(root, rel)) || isIgnored(rel)) return;
       }
       schedule();
     });
@@ -225,22 +233,30 @@ export async function packCommand(directory: string, command: Command, io: CliIO
 
     const changedRef = opts.changed === true ? 'HEAD' : opts.changed || undefined;
     // Config focus paths are relative to the config file, or to the clone with --remote.
-    const focus = configFocus
+    const baseFocus = configFocus
       ? configFocus.paths.map((f) => (/[*?[\]{}]/.test(f) && !existsSync(resolve(configFocus.dir, f)) ? f : resolve(opts.remote ? root : configFocus.dir, f)))
       : [...opts.focus];
-    if (changedRef) {
-      const changed = await changedFiles(root, changedRef);
-      if (!changed.length) warn(io, errColors, `no files changed vs ${changedRef}`);
-      focus.push(...changed);
-    }
 
     const once = async (initial: boolean): Promise<WatchReport> => {
+      // Recomputed on every run so --watch picks up newly changed files.
+      const focus = [...baseFocus];
+      if (changedRef) {
+        const changed = await changedFiles(root, changedRef);
+        if (!changed.length && initial) warn(io, errColors, `no files changed vs ${changedRef}`);
+        focus.push(...changed);
+      }
+
       const outputPath = opts.stdout ? undefined : resolve(io.cwd, opts.output ?? `astpack-output.${OUTPUT_EXTENSIONS[opts.format]}`);
       const ignore = [...opts.ignore];
       // Never pack our own output file.
       if (outputPath) {
         const rel = toPosix(relative(root, outputPath));
         if (rel && !rel.startsWith('..')) ignore.push(`/${rel}`, `/${partPath(rel, 0).replace('.part0', '.part*')}`);
+      }
+      // Nor the stats file from a previous run.
+      if (opts.statsJson) {
+        const rel = toPosix(relative(root, resolve(io.cwd, opts.statsJson)));
+        if (rel && !rel.startsWith('..')) ignore.push(`/${rel}`);
       }
 
       const showProgress = !opts.quiet && !!io.stderr.isTTY;
@@ -369,6 +385,7 @@ export async function packCommand(directory: string, command: Command, io: CliIO
         savedRatio,
         destination: destinations.join(', ') || (write ? 'stdout' : 'dry run'),
         outputs: [outputPath, opts.statsJson ? resolve(io.cwd, opts.statsJson) : undefined].filter((p): p is string => !!p),
+        ignored: result.skipped.filter((e) => e.reason === 'ignored').map((e) => e.path),
       };
     };
 
@@ -378,9 +395,10 @@ export async function packCommand(directory: string, command: Command, io: CliIO
       const controller = new AbortController();
       const stop = () => controller.abort();
       const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const;
-      for (const s of signals) process.once(s, stop);
+      // `on`, not `once`: a terminal Ctrl+C can arrive twice (it also reaches the launcher).
+      for (const s of signals) process.on(s, stop);
       try {
-        await watchLoop({ root, outputs: first.outputs, rerun: () => once(false), io, colors: errColors, signal: controller.signal });
+        await watchLoop({ root, outputs: first.outputs, ignored: first.ignored, rerun: () => once(false), io, colors: errColors, signal: controller.signal });
       } finally {
         for (const s of signals) process.off(s, stop);
       }

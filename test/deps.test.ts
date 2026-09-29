@@ -46,9 +46,34 @@ describe('dependencyGraph', () => {
       'src/shared.py': '',
     });
     expect(graph).toEqual({
-      'src/app/main.py': ['src/app/__init__.py', 'src/app/config.py', 'src/app/db.py', 'src/app/utils/text.py'],
+      'src/app/main.py': ['src/app/config.py', 'src/app/db.py', 'src/app/models.py', 'src/app/utils/text.py'],
       'src/app/models.py': ['src/shared.py'],
     });
+  });
+
+  it('resolves `from . import name` to sibling modules, falling back to the package', async () => {
+    const { graph } = await graphOf({
+      'pkg/__init__.py': 'VERSION = 1\n',
+      'pkg/a.py': 'from . import b, c as cc\nfrom . import VERSION\n',
+      'pkg/b.py': '',
+      'pkg/c.py': '',
+      'top.py': 'from pkg import (\n    a,\n    b,\n)\nimport pkg.c, os\n',
+    });
+    expect(graph).toEqual({
+      'pkg/a.py': ['pkg/__init__.py', 'pkg/b.py', 'pkg/c.py'],
+      'top.py': ['pkg/a.py', 'pkg/b.py', 'pkg/c.py'],
+    });
+  });
+
+  it('only links Go imports inside a module declared in the pack', async () => {
+    const { graph } = await graphOf({
+      'go.mod': 'module example.com/app\n',
+      'main.go': 'package main\n\nimport (\n\t"log"\n\t"errors"\n\t"github.com/other/lib/pkg/util"\n\t"example.com/app/pkg/util"\n)\n',
+      'log/log.go': 'package log\n',
+      'errors/errors.go': 'package errors\n',
+      'pkg/util/util.go': 'package util\n',
+    });
+    expect(graph).toEqual({ 'main.go': ['pkg/util/util.go'] });
   });
 
   it('resolves Go package imports to a file of the package', async () => {

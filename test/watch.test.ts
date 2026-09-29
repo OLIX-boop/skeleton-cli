@@ -32,7 +32,7 @@ async function waitFor(check: () => boolean, timeout = 5000) {
 
 describe('watchLoop', () => {
   it('re-runs after changes, ignoring its own outputs and .git', async () => {
-    const t = await makeTree({ 'a.ts': 'export const a = 1;\n', '.git/HEAD': 'x' });
+    const t = await makeTree({ 'a.ts': 'export const a = 1;\n', '.git/HEAD': 'x', 'dist/': '' });
     cleanups.push(t.cleanup);
     const stderr = new Capture();
     const controller = new AbortController();
@@ -41,6 +41,7 @@ describe('watchLoop', () => {
     const done = watchLoop({
       root: t.root,
       outputs: [out],
+      ignored: ['dist/', 'debug.log'],
       rerun: async (): Promise<WatchReport> => {
         runs++;
         return { files: 1, tokens: 10, savedRatio: 0.5, destination: 'Wrote out.md', outputs: [out] };
@@ -55,6 +56,8 @@ describe('watchLoop', () => {
     await writeFile(out, 'generated');
     await writeFile(join(t.root, 'out.part2.md'), 'generated');
     await writeFile(join(t.root, '.git/HEAD'), 'y');
+    await writeFile(join(t.root, 'dist/bundle.js'), 'built');
+    await writeFile(join(t.root, 'debug.log'), 'noise');
     await sleep(300);
     expect(runs).toBe(0);
 

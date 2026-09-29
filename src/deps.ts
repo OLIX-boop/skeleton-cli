@@ -7,23 +7,29 @@ export type DependencyGraph = Map<string, string[]>;
 interface Resolver {
   /** Import specifiers found in the source. */
   extract(source: string): string[];
-  /** Resolve a specifier to a packed file path, if it names one. */
-  resolve(spec: string, from: string, files: FileIndex): string | undefined;
+  /** Resolve a specifier to packed file path(s), if it names any. */
+  resolve(spec: string, from: string, files: FileIndex): string | string[] | undefined;
 }
 
 class FileIndex {
   readonly paths: Set<string>;
   /** Directory → files directly in it (for package-level languages like Go). */
   readonly byDir = new Map<string, string[]>();
-  /** Path without extension → path (for suffix lookups like Java packages). */
-  readonly bySuffix = new Map<string, string[]>();
+  /** Go modules in the pack: module path → directory of its go.mod. */
+  readonly goModules: { path: string; dir: string }[] = [];
 
-  constructor(paths: readonly string[]) {
-    this.paths = new Set(paths);
-    for (const p of paths) {
-      const dir = posix.dirname(p);
-      (this.byDir.get(dir) ?? this.byDir.set(dir, []).get(dir)!).push(p);
+  constructor(files: readonly PackedFile[]) {
+    this.paths = new Set(files.map((f) => f.path));
+    for (const f of files) {
+      const dir = posix.dirname(f.path);
+      (this.byDir.get(dir) ?? this.byDir.set(dir, []).get(dir)!).push(f.path);
+      if (posix.basename(f.path) === 'go.mod') {
+        const module = /^\s*module\s+(\S+)/m.exec(f.original)?.[1];
+        if (module) this.goModules.push({ path: module, dir });
+      }
     }
+    // Longest module path first, so nested modules win.
+    this.goModules.sort((a, b) => b.path.length - a.path.length);
   }
 
   has(p: string): boolean {
@@ -69,30 +75,47 @@ const javascript: Resolver = {
   },
 };
 
+/** Resolve a dotted Python module (optionally relative, e.g. `..pkg.mod`) to a file. */
+function resolvePythonModule(spec: string, from: string, files: FileIndex): string | undefined {
+  const dots = /^\.+/.exec(spec)?.[0].length ?? 0;
+  let dir = '.';
+  if (dots) {
+    dir = posix.dirname(from);
+    for (let i = 1; i < dots; i++) dir = posix.dirname(dir);
+  }
+  const rel = spec.slice(dots).split('.').filter(Boolean).join('/');
+  const base = posix.normalize(posix.join(dir, rel || '.'));
+  const clean = base === '.' ? '' : base;
+  const direct = files.first(clean ? [`${clean}.py`, `${clean}/__init__.py`, `${clean}.pyi`] : ['__init__.py']);
+  if (direct || dots || !rel) return direct;
+  // Absolute imports: the package may live under a source root such as src/.
+  const matches = [...files.endingWith(`${rel}.py`), ...files.endingWith(`${rel}/__init__.py`)];
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
 const python: Resolver = {
-  extract: (s) => [
-    ...all(s, /^\s*from\s+(\.+[\w.]*|[A-Za-z_][\w.]*)\s+import\b/gm),
-    ...all(s, /^\s*import\s+([A-Za-z_][\w.]*)/gm),
-  ],
-  resolve(spec, from, files) {
-    let dir: string;
-    let rest: string;
-    const dots = /^\.+/.exec(spec)?.[0].length ?? 0;
-    if (dots) {
-      dir = posix.dirname(from);
-      for (let i = 1; i < dots; i++) dir = posix.dirname(dir);
-      rest = spec.slice(dots);
-    } else {
-      dir = '';
-      rest = spec;
+  extract(s) {
+    const specs = all(s, /^\s*import\s+([A-Za-z_][\w.]*(?:\s*,\s*[A-Za-z_][\w.]*)*)/gm).flatMap((l) => l.split(',').map((x) => x.trim()));
+    for (const m of s.matchAll(/^\s*from\s+(\.+[\w.]*|[A-Za-z_][\w.]*)\s+import\s+(\([^)]*\)|[^\n#;]+)/gm)) {
+      const names = m[2]!
+        .replace(/[()\\]/g, ' ')
+        .split(',')
+        .map((raw) => raw.trim().split(/\s+as\s+/)[0]!.trim())
+        .filter((name) => /^[A-Za-z_]\w*$/.test(name));
+      // Encoded as module NUL name NUL name…, resolved together below.
+      specs.push([m[1]!, ...names].join('\u0000'));
     }
-    const rel = rest.split('.').filter(Boolean).join('/');
-    const base = rel ? (dir && dir !== '.' ? `${dir}/${rel}` : rel) : dir;
-    const direct = files.first([`${base}.py`, `${base}/__init__.py`, `${base}.pyi`]);
-    if (direct || dots) return direct;
-    // Absolute imports: the package may live under a source root such as src/.
-    const matches = [...files.endingWith(`${rel}.py`), ...files.endingWith(`${rel}/__init__.py`)];
-    return matches.length === 1 ? matches[0] : undefined;
+    return specs;
+  },
+  resolve(spec, from, files) {
+    const [module, ...names] = spec.split('\u0000') as [string, ...string[]];
+    // `from pkg import mod` names submodules when they exist; otherwise the names are
+    // attributes of `pkg` itself.
+    const submodules = names
+      .map((name) => resolvePythonModule(/^\.+$/.test(module) ? `${module}${name}` : `${module}.${name}`, from, files))
+      .filter((t): t is string => !!t);
+    if (submodules.length) return submodules;
+    return resolvePythonModule(module, from, files);
   },
 };
 
@@ -104,14 +127,14 @@ const go: Resolver = {
     return specs;
   },
   resolve(spec, from, files) {
-    // Match the import path's tail against package directories in the pack.
-    const parts = spec.split('/');
-    for (let i = 0; i < parts.length; i++) {
-      const dir = parts.slice(i).join('/');
-      const inDir = files.byDir.get(dir)?.filter((f) => f.endsWith('.go') && !f.endsWith('_test.go'));
-      if (inDir?.length && posix.dirname(from) !== dir) return inDir.sort()[0];
-    }
-    return undefined;
+    // Only imports inside a module declared by a go.mod in the pack are internal.
+    const module = files.goModules.find((m) => spec === m.path || spec.startsWith(`${m.path}/`));
+    if (!module) return undefined;
+    const sub = spec.slice(module.path.length + 1);
+    const dir = posix.normalize(posix.join(module.dir, sub || '.'));
+    if (dir === posix.dirname(from)) return undefined;
+    const inDir = files.byDir.get(dir)?.filter((f) => f.endsWith('.go') && !f.endsWith('_test.go'));
+    return inDir?.length ? [...inDir].sort()[0] : undefined;
   },
 };
 
@@ -184,15 +207,17 @@ const RESOLVERS: Record<string, Resolver> = {
 
 /** Build the internal import graph of a pack (edges to files outside the pack are dropped). */
 export function dependencyGraph(result: PackResult): DependencyGraph {
-  const index = new FileIndex(result.files.map((f) => f.path));
+  const index = new FileIndex(result.files);
   const graph: DependencyGraph = new Map();
   for (const file of result.files) {
     const resolver = file.language ? RESOLVERS[file.language] : undefined;
     if (!resolver) continue;
     const deps = new Set<string>();
     for (const spec of resolver.extract(file.original)) {
-      const target = resolver.resolve(spec, file.path, index);
-      if (target && target !== file.path) deps.add(target);
+      const resolved = resolver.resolve(spec, file.path, index);
+      for (const target of Array.isArray(resolved) ? resolved : resolved ? [resolved] : []) {
+        if (target !== file.path) deps.add(target);
+      }
     }
     if (deps.size) graph.set(file.path, [...deps].sort());
   }

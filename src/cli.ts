@@ -14,17 +14,23 @@ function relaunchWithLiftoff(): boolean {
   const child = spawn(process.execPath, ['--liftoff-only', ...process.execArgv, fileURLToPath(import.meta.url), ...process.argv.slice(2)], {
     stdio: 'inherit',
   });
-  // Terminal signals reach both processes; let the child decide how to exit.
-  for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
-    process.on(signal, () => child.kill(signal));
-  }
+  // Forward signals sent to this process alone (e.g. `kill`, CI timeouts). Terminal signals
+  // reach both processes; the child tolerates the duplicate.
+  const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const;
+  const forward = (signal: NodeJS.Signals) => child.kill(signal);
+  for (const signal of signals) process.on(signal, forward);
   child.on('error', (error) => {
     process.stderr.write(`astpack: failed to start: ${error.message}\n`);
     process.exit(1);
   });
   child.on('exit', (code, signal) => {
-    if (signal) process.kill(process.pid, signal);
-    else process.exit(code ?? 1);
+    if (signal) {
+      // Die by the same signal so callers see e.g. 130/143, not success.
+      for (const s of signals) process.off(s, forward);
+      process.kill(process.pid, signal);
+    } else {
+      process.exit(code ?? 1);
+    }
   });
   return true;
 }

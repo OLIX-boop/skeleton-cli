@@ -1,5 +1,12 @@
 // Used by action.yml: turns --stats-json output into step outputs and a job summary.
-import { appendFileSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync } from 'node:fs';
+
+/** Mirrors partPath() in src/split.ts: out.md -> out.part2.md. */
+function partPath(path, index) {
+  const slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+  const dot = path.lastIndexOf('.');
+  return dot > slash + 1 ? `${path.slice(0, dot)}.part${index}${path.slice(dot)}` : `${path}.part${index}`;
+}
 
 const [statsPath, outputPath, summary] = process.argv.slice(2);
 const stats = JSON.parse(readFileSync(statsPath, 'utf8'));
@@ -7,15 +14,21 @@ const cl = stats.tokens.cl100k_base;
 const saved = Math.round(stats.savedRatio * 100);
 const fmt = (n) => n.toLocaleString('en-US');
 
+// Which files the run actually wrote (parts with --split-tokens, none with --stdout/--dry-run).
+const candidates = stats.parts ? stats.parts.map((_, i) => partPath(outputPath, i + 1)) : [outputPath];
+const written = candidates.filter((p) => existsSync(p));
+
 const outputs = {
-  'output-path': outputPath,
+  'output-path': written[0] ?? '',
   files: stats.files.included,
   tokens: cl.output,
   'raw-tokens': cl.baseline,
   'saved-percent': saved,
 };
 if (process.env.GITHUB_OUTPUT) {
-  appendFileSync(process.env.GITHUB_OUTPUT, Object.entries(outputs).map(([k, v]) => `${k}=${v}\n`).join(''));
+  const lines = Object.entries(outputs).map(([k, v]) => `${k}=${v}\n`);
+  lines.push(`output-paths<<ASTPACK_EOF\n${written.join('\n')}\nASTPACK_EOF\n`);
+  appendFileSync(process.env.GITHUB_OUTPUT, lines.join(''));
 }
 
 if (summary === 'true' && process.env.GITHUB_STEP_SUMMARY) {
@@ -41,4 +54,4 @@ if (summary === 'true' && process.env.GITHUB_STEP_SUMMARY) {
   ];
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n'));
 }
-console.log(`astpack: ${fmt(cl.output)} tokens (${saved}% saved) → ${outputPath}`);
+console.log(`astpack: ${fmt(cl.output)} tokens (${saved}% saved) → ${written.join(', ') || 'nothing written'}`);
