@@ -190,6 +190,8 @@ astpack summary
   code.
 - **Dependency graph** — `--deps` adds a `file -> imports` map of the project's internal modules.
 - **Three formats** — Markdown (default), LLM-style XML and JSON; `--clipboard` and `--stdout` for piping.
+- **Presets** — `--preset review|explain|refactor|debug` for common LLM tasks, with ready-made instructions.
+- **Token map** — `astpack tree` shows which directories the tokens go to; `--watch` keeps the output fresh.
 - **MCP server** — `astpack mcp` exposes `pack_codebase`, `estimate_tokens` and `skeleton_file` to Claude and other agents.
 - **Zero config, zero compilation** — WASM grammars, no native build step; an optional `astpack.config.json`
   when you want defaults per project.
