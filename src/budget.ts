@@ -1,6 +1,6 @@
 import { transformFile, type FallbackLimits } from './engine/transform.js';
 import type { CommentMode } from './languages/types.js';
-import type { PackedFile, PackResult } from './pack.js';
+import { fenceForStrategy, type PackedFile, type PackResult } from './pack.js';
 import { TokenCounter, type EncodingName } from './tokens/index.js';
 
 /** One rung of the compression ladder. */
@@ -61,7 +61,9 @@ function omissionRank(file: PackedFile): number {
 
 function ladder(start: PackedFile, baseComments: CommentMode): Level[] {
   const levels: Level[] = [];
-  if (start.strategy === 'full' && !start.language) {
+  if (start.strategy === 'outline') {
+    levels.push({ name: 'outline', mode: 'outline' });
+  } else if (start.strategy === 'full' && !start.language) {
     // Unsupported file: full -> truncated -> omitted.
     levels.push({ name: 'full', mode: 'full' }, { name: 'skeleton', mode: 'skeleton' });
   } else if (start.language) {
@@ -69,8 +71,6 @@ function ladder(start: PackedFile, baseComments: CommentMode): Level[] {
     levels.push({ name: 'skeleton', mode: 'skeleton', comments: baseComments });
     if (baseComments === 'all') levels.push({ name: 'docs', mode: 'skeleton', comments: 'docs' });
     if (baseComments !== 'none') levels.push({ name: 'bare', mode: 'skeleton', comments: 'none' });
-    levels.push({ name: 'outline', mode: 'outline' });
-  } else if (start.strategy === 'outline') {
     levels.push({ name: 'outline', mode: 'outline' });
   } else {
     levels.push({ name: 'skeleton', mode: 'skeleton' });
@@ -138,6 +138,7 @@ export async function fitToBudget(input: PackResult, options: BudgetOptions): Pr
           ...base,
           content: t.content,
           strategy: t.strategy,
+          fence: fenceForStrategy(t.strategy, base.fence),
           strippedBodies: t.strippedBodies,
           strippedComments: t.strippedComments,
           redactions: t.redactions,

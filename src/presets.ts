@@ -11,7 +11,7 @@ export const PRESETS: Record<string, Preset> = {
   review: {
     description: 'code review of your changes: focus + diff vs the base branch, skeleton elsewhere',
     options: {
-      changed: true,
+      changed: '@base',
       diff: true,
       comments: 'docs',
       instructions: [

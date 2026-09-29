@@ -75,7 +75,10 @@ export function buildProgram(io: CliIO, setExit: (code: number) => void): Comman
     )
     .option('--config <file>', 'config file (default: astpack.config.json in the directory or cwd)')
     .option('--no-config', 'ignore config files')
-    .option('--changed [ref]', 'focus files changed vs a git ref (default HEAD: uncommitted and untracked changes)')
+    .option(
+      '--changed [ref]',
+      'focus files changed vs a git ref (default HEAD: uncommitted and untracked changes; @base = the repo base branch)',
+    )
     .option('--diff [ref]', 'include the git diff vs a ref (default: the --changed ref, or HEAD)')
     .option('--remote <repo>', 'pack a remote repository (owner/repo, URL, optionally #branch) via a shallow clone')
     .option(

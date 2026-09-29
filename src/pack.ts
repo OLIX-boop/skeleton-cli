@@ -83,6 +83,11 @@ export function fenceFor(path: string): string {
   return FENCE_BY_EXTENSION[name.slice(dot + 1)] ?? 'text';
 }
 
+/** Outlines aren't valid code in the file's language, so don't highlight them as such. */
+export function fenceForStrategy(strategy: string, fence: string): string {
+  return strategy === 'outline' ? 'text' : fence;
+}
+
 /** Read a text file, dropping a UTF-8 BOM and normalizing CRLF line endings. */
 export async function readText(absPath: string): Promise<string> {
   let text = await readFile(absPath, 'utf8');
@@ -112,8 +117,7 @@ export async function pack(root: string, options: PackOptions = {}): Promise<Pac
       path: entry.path,
       size: entry.size,
       language: result.language?.id,
-      // Outlines aren't valid code in the file's language; don't highlight them as such.
-      fence: result.strategy === 'outline' ? 'text' : (result.language?.fence ?? fenceFor(entry.path)),
+      fence: fenceForStrategy(result.strategy, result.language?.fence ?? fenceFor(entry.path)),
       strategy: result.strategy,
       focused,
       content: result.content,

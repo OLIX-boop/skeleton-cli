@@ -266,7 +266,7 @@ a config file) wins.
 
 | Preset | Options | Instructions |
 | --- | --- | --- |
-| `review` | `--changed --diff --comments docs` | Review the diff: bugs, security, error handling, tests, design. |
+| `review` | `--changed @base --diff --comments docs` | Review the diff: bugs, security, error handling, tests, design. |
 | `explain` | `--outline --deps` | Explain the architecture to a new contributor. |
 | `refactor` | `--deps --comments docs` | Plan a refactor of the focused files, listing affected callers. |
 | `debug` | — | Find the root cause of a bug in the focused files (with a placeholder for your description). |
@@ -287,7 +287,8 @@ astpack --remote owner/repo#dev --focus src/core
 ```
 
 `--changed <ref>` diffs against the merge-base of `<ref>` and `HEAD`, so commits that landed on `main` after
-you branched don't count as "your" changes.
+you branched don't count as "your" changes. The special ref `@base` means the repository's base branch
+(`origin/HEAD`, else `main`/`master`).
 
 ### Token budgets and splitting
 
@@ -400,7 +401,7 @@ This is a safety net, not a guarantee. Keep secrets out of your repository.
 | `--instructions <text>` | Instructions at the top of the document; `@file` reads a file. |
 | `--follow-symlinks` | Follow symbolic links. |
 | `--no-redact` | Don't mask likely secrets. |
-| `--changed [ref]` | Focus files changed vs a git ref (default `HEAD`: uncommitted and untracked). |
+| `--changed [ref]` | Focus files changed vs a git ref (default `HEAD`: uncommitted and untracked; `@base`: the base branch). |
 | `--diff [ref]` | Include the git diff vs a ref (default: the `--changed` ref, or `HEAD`). |
 | `--remote <repo>` | Pack a remote repository (`owner/repo`, URL, optionally `#branch`). |
 | `--preset <name>` | `review`, `explain`, `refactor` or `debug`: ready-made options and instructions (see [Presets](#presets)). |
@@ -443,7 +444,8 @@ merged; paths are relative to the config file.
 }
 ```
 
-`astpack init` writes a starter file. The published [`schema.json`](schema.json) gives editors completion and
+`--claude-tokens` is deliberately not configurable from a file: it uploads the document, so a repository you
+cloned can't switch it on. `astpack init` writes a starter file. The published [`schema.json`](schema.json) gives editors completion and
 validation. Unknown keys produce a warning; invalid values are an error that names the key.
 
 ## MCP server

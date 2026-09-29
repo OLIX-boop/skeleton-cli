@@ -96,7 +96,7 @@ async def main(argv: list[str] | None = None) -> int
 
   it('Ruby, Elixir, Kotlin, Dart', async () => {
     expect(await o('module M\n  class A < B\n    def initialize(x)\n      @x = x\n    end\n    def self.build = new(1)\n  end\nend\n', 'ruby')).toBe(
-      'module M\n  class A < B\n    def initialize(x)\n',
+      'module M\n  class A < B\n    def initialize(x)\n    def self.build\n',
     );
     expect(await o('defmodule App.Users do\n  def get(id) do\n    Repo.get(id)\n  end\nend\n', 'elixir')).toBe('defmodule App.Users\n  def get(id)\n');
     expect(await o('class A(val x: Int) {\n    fun f(a: Int): Int {\n        return a\n    }\n}\ninterface I {\n    fun m()\n}\n', 'kotlin')).toBe(
@@ -136,5 +136,24 @@ describe('outline headers', () => {
     expect(await o(py, 'python')).toBe('def check(a: str, b: int | None) -> None\n');
     const java = 'class A {\n  @SuppressWarnings("x") // why\n  public A(int x) {}\n}\n';
     expect(await o(java, 'java')).toBe('class A\n  @SuppressWarnings("x") public A(int x)\n');
+  });
+});
+
+describe('outline review fixes', () => {
+  it('lists functions whose bodies the skeleton keeps (stubs, pass, one-line arrows)', async () => {
+    expect(await o('class A:\n    def g(self): pass\n    def h(self) -> int: ...\n', 'python')).toBe('class A\n  def g(self)\n  def h(self) -> int\n');
+    expect(await o("export const isAdmin = (u: User) => u.role === 'admin';\n", 'typescript')).toBe('export const isAdmin = (u: User) =>\n');
+  });
+
+  it('C/C++: prototypes, method declarations and type definitions only', async () => {
+    const h = 'struct point { int x; };\ntypedef struct { int a; } pair_t;\nint add(int a, int b);\nvoid print_point(const struct point *p);\nstatic int *make(void);\n';
+    expect(await o(h, 'c')).toBe('struct point\ntypedef struct pair_t\nint add(int a, int b)\nvoid print_point(const struct point *p)\nstatic int *make(void)\n');
+    const cpp = 'class Foo {\n public:\n  void bar();\n  int baz(int x) { return x; }\n private:\n  int n;\n};\n';
+    expect(await o(cpp, 'cpp')).toBe('class Foo\n  void bar()\n  int baz(int x)\n');
+  });
+
+  it('strips comments and repeated openers from first lines', async () => {
+    expect(await o('export enum Role { // roles\n  A,\n}\n', 'typescript')).toBe('export enum Role\n');
+    expect(await o('type Foo = {\n  a: string;\n};\n', 'typescript')).toBe('type Foo\n');
   });
 });

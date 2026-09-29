@@ -35,7 +35,7 @@ describe('countClaudeTokens', () => {
     mode = 'ok';
     const counts = await countClaudeTokens('hello', [model('claude-sonnet-5.5'), model('claude-opus-5.5'), model('claude-haiku-4.5'), model('claude-3.5-sonnet'), model('gpt-4o')]);
     expect(Object.fromEntries(counts)).toEqual({ 'claude-sonnet-5.5': 120, 'claude-opus-5.5': 130 });
-    expect(calls.map((c) => c.model)).toEqual(['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-4-5']);
+    expect(calls.map((c) => c.model).sort()).toEqual(['claude-haiku-4-5', 'claude-opus-5-5', 'claude-sonnet-5-5']);
     expect(calls[0]!.content).toBe('hello');
   });
 

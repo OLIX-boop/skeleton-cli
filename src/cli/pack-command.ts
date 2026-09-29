@@ -6,7 +6,7 @@ import { fitToBudget, type BudgetReport } from '../budget.js';
 import { dependencyGraph } from '../deps.js';
 import { findConfig, loadConfig, type AstpackConfig } from '../config.js';
 import { PRESETS } from '../presets.js';
-import { changedFiles, cloneRemote, diffText, parseRemote } from '../git.js';
+import { changedFiles, cloneRemote, diffText, parseRemote, resolveRef } from '../git.js';
 import { OUTPUT_EXTENSIONS, render } from '../output/index.js';
 import { pack, type PackOptions } from '../pack.js';
 import { partPath, splitPack, type SplitReport } from '../split.js';
@@ -247,7 +247,8 @@ export async function packCommand(directory: string, command: Command, io: CliIO
       projectName = spec.name;
     }
 
-    const changedRef = opts.changed === true ? 'HEAD' : opts.changed || undefined;
+    const requestedChanged = opts.changed === true ? 'HEAD' : opts.changed || undefined;
+    const changedRef = requestedChanged ? await resolveRef(requestedChanged, root) : undefined;
     // Config focus paths are relative to the config file, or to the clone with --remote.
     const baseFocus = configFocus
       ? configFocus.paths.map((f) => (/[*?[\]{}]/.test(f) && !existsSync(resolve(configFocus.dir, f)) ? f : resolve(opts.remote ? root : configFocus.dir, f)))
@@ -310,7 +311,7 @@ export async function packCommand(directory: string, command: Command, io: CliIO
         warn(io, errColors, `no files matched --focus ${opts.focus.join(', ')}`);
       }
 
-      const diffRef = opts.diff === true ? (changedRef ?? 'HEAD') : opts.diff || undefined;
+      const diffRef = opts.diff === true ? (changedRef ?? 'HEAD') : opts.diff ? await resolveRef(opts.diff, root) : undefined;
       const renderOptions = {
         projectName,
         tree: opts.tree,
@@ -381,9 +382,12 @@ export async function packCommand(directory: string, command: Command, io: CliIO
       let savedRatio = 0;
       if (!opts.quiet || opts.statsJson || opts.watch) {
         const modelIds = opts.models.length ? opts.models : [...DEFAULT_MODELS];
-        const exactTokens = opts.claudeTokens
-          ? await countClaudeTokens(document, modelIds.map(findModel).filter((m): m is NonNullable<typeof m> => !!m))
-          : undefined;
+        // Exact Claude counts upload the document, so only do it for the summary that is shown
+        // (the initial run), not on every --watch rebuild.
+        const exactTokens =
+          opts.claudeTokens && initial && !opts.quiet
+            ? await countClaudeTokens(document, modelIds.map(findModel).filter((m): m is NonNullable<typeof m> => !!m))
+            : undefined;
         const stats = computeStats(result, document, { models: modelIds, exactTokens });
         lastTokens = stats.tokens.cl100k_base.output;
         savedRatio = stats.savedRatio;

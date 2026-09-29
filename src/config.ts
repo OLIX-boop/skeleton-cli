@@ -33,7 +33,6 @@ export interface AstpackConfig {
   changed?: string | boolean;
   diff?: string | boolean;
   models?: string[];
-  claudeTokens?: boolean;
   top?: number;
   preset?: string;
 }
@@ -67,7 +66,6 @@ export const CONFIG_SCHEMA: Record<keyof AstpackConfig, { kind: Kind; descriptio
   changed: { kind: 'string|boolean', description: 'Focus files changed vs a git ref (true = HEAD).' },
   diff: { kind: 'string|boolean', description: 'Include the git diff vs a ref (true = the --changed ref or HEAD).' },
   models: { kind: 'string[]', description: 'Models to price in the summary.' },
-  claudeTokens: { kind: 'boolean', description: 'Count Claude tokens exactly via the Anthropic API (sends the document).' },
   top: { kind: 'number', description: 'Number of largest files listed in the summary.' },
   preset: { kind: ['review', 'explain', 'refactor', 'debug'], description: 'Ready-made options and instructions for a task.' },
 };

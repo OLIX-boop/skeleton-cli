@@ -78,6 +78,11 @@ export interface LanguageSpec {
     members?: readonly string[];
     /** Dynamic container check, for grammars where containers are generic calls (Elixir). */
     isContainer?(node: Node): boolean;
+    /**
+     * Custom line for a node: a string to list it (`''` to skip it silently), or `undefined`
+     * to fall back to the generic rules. Used where node types alone are ambiguous (C).
+     */
+    label?(node: Node, depth: number, source: string): string | undefined;
   };
   /** Language name used for Markdown code fences. */
   fence: string;

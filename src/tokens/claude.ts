@@ -28,23 +28,27 @@ export async function countClaudeTokens(text: string, models: readonly ModelPric
     throw new ClaudeCountError(`--claude-tokens needs Anthropic credentials (set ANTHROPIC_API_KEY): ${(error as Error).message}`);
   }
 
-  for (const model of targets) {
-    try {
-      const response = await client.messages.countTokens({
-        model: model.anthropicModel!,
-        messages: [{ role: 'user', content: text }],
-      });
-      counts.set(model.id, response.input_tokens);
-    } catch (error) {
-      if (error instanceof Anthropic.NotFoundError) continue; // model not available to count
-      if (error instanceof Anthropic.AuthenticationError) {
-        throw new ClaudeCountError('Anthropic rejected the API key used for --claude-tokens');
-      }
-      if (error instanceof Anthropic.APIError) {
-        throw new ClaudeCountError(`Token counting failed for ${model.label} (${error.status ?? 'network'}): ${error.message}`);
-      }
-      throw error;
+  // One request per model, in parallel (tokenizers differ between model generations).
+  const results = await Promise.allSettled(
+    targets.map((model) =>
+      client.messages.countTokens({ model: model.anthropicModel!, messages: [{ role: 'user', content: text }] }),
+    ),
+  );
+  results.forEach((result, i) => {
+    const model = targets[i]!;
+    if (result.status === 'fulfilled') {
+      counts.set(model.id, result.value.input_tokens);
+      return;
     }
-  }
+    const error = result.reason as unknown;
+    if (error instanceof Anthropic.NotFoundError) return; // model not available to count
+    if (error instanceof Anthropic.AuthenticationError) {
+      throw new ClaudeCountError('Anthropic rejected the API key used for --claude-tokens');
+    }
+    if (error instanceof Anthropic.APIError) {
+      throw new ClaudeCountError(`Token counting failed for ${model.label} (${error.status ?? 'network'}): ${error.message}`);
+    }
+    throw error;
+  });
   return counts;
 }

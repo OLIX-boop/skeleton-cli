@@ -93,6 +93,19 @@ describe.skipIf(!hasGit)('git integration', { timeout: 30_000 }, () => {
     expect(await diffText(root, 'main')).toContain('+  return 30;');
   });
 
+  it('resolves @base to the base branch', async () => {
+    const root = await repo();
+    g(root, 'checkout', '-qb', 'feature');
+    await writeFile(join(root, 'src/c.ts'), 'export function c() {\n  return 30;\n}\n');
+    g(root, 'commit', '-qam', 'change c');
+    const { resolveRef } = await import('../src/git.js');
+    expect(await resolveRef('@base', root)).toBe('main');
+    expect(await resolveRef('v1', root)).toBe('v1');
+    const { stdout } = await cli(['--stdout', '-q', '--preset', 'review'], root);
+    expect(stdout).toContain('### `src/c.ts` [focus]');
+    expect(stdout).toContain('## Git diff (vs `main`)');
+  });
+
   it('rejects unknown refs and non-repositories', async () => {
     const root = await repo();
     await expect(changedFiles(root, 'no-such-branch')).rejects.toThrow(/unknown git ref/);

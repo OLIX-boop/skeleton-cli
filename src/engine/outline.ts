@@ -19,7 +19,11 @@ function tidy(text: string): string {
     .replace(/([([])\s+/g, '$1')
     .replace(/,?\s+([)\]])/g, '$1')
     .trim();
-  line = line.replace(/\s*(\{|:|=|;|\bdo|\bwhere|\bbegin)\s*$/u, '').trim();
+  // Strip trailing block openers repeatedly: `type Foo = {` -> `type Foo`.
+  for (let prev = ''; prev !== line; ) {
+    prev = line;
+    line = line.replace(/\s*(\{|:|=|;|\bdo|\bwhere|\bbegin)\s*$/u, '').trim();
+  }
   return line.length > MAX_LINE ? `${line.slice(0, MAX_LINE - 1)}…` : line;
 }
 
@@ -87,7 +91,22 @@ function headerFrom(source: string, node: Node, end: number): string {
 function firstLine(source: string, node: Node): string {
   const start = headerStart(source, node);
   const nl = source.indexOf('\n', node.startIndex);
-  return tidy(source.slice(start, nl === -1 || nl > node.endIndex ? node.endIndex : nl));
+  return tidy(withoutComments(source, node, start, nl === -1 || nl > node.endIndex ? node.endIndex : nl));
+}
+
+/**
+ * Where a function's signature ends: at the body the skeletonizer would replace, or — for
+ * bodies it leaves alone (stubs, `pass`, one-line arrows) — at the body node itself.
+ */
+function signatureEnd(node: Node, spec: LanguageSpec, context: { placeholder: string; comments: 'all' }): number | undefined {
+  const replacement = spec.bodyReplacement(node, '...', context);
+  if (replacement) return replacement.start ?? replacement.node.startIndex;
+  if (node.type === 'function_body') return node.startIndex; // Dart
+  const body = node.childForFieldName('body');
+  if (!body) return undefined;
+  // One-line arrow functions: keep `(u) =>` rather than cutting before the arrow.
+  const arrow = body.previousSibling;
+  return arrow?.type === '=>' ? arrow.endIndex : body.startIndex;
 }
 
 /**
@@ -113,14 +132,18 @@ export function outlineTree(source: string, root: Node, spec: LanguageSpec): { l
       return;
     }
     if (functions.has(node.type)) {
-      const replacement = spec.bodyReplacement(node, '...', context);
-      if (replacement) {
-        const end = replacement.start ?? replacement.node.startIndex;
+      const end = signatureEnd(node, spec, context);
+      if (end !== undefined) {
         // Dart keeps the signature in a sibling node before the body.
         const headerNode = node.type === 'function_body' && node.previousNamedSibling ? node.previousNamedSibling : node;
         lines.push(indent + headerFrom(source, headerNode, end));
         return; // nested functions are implementation details
       }
+    }
+    const label = spec.outline?.label?.(node, depth, source);
+    if (label !== undefined) {
+      if (label) lines.push(indent + tidy(label));
+      return;
     }
     if (declarations.has(node.type) || (depth > 0 && members.has(node.type))) {
       lines.push(indent + firstLine(source, node));

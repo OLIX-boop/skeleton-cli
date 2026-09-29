@@ -155,10 +155,6 @@
       },
       "description": "Models to price in the summary."
     },
-    "claudeTokens": {
-      "type": "boolean",
-      "description": "Count Claude tokens exactly via the Anthropic API (sends the document)."
-    },
     "top": {
       "type": "number",
       "minimum": 0,

@@ -163,6 +163,10 @@ describe('presets', () => {
     expect(stdout).not.toContain('## Dependencies');
   });
 
+  it('does not accept claudeTokens from a config file (it would upload the document)', () => {
+    expect(validateConfig({ claudeTokens: true }).warnings).toEqual(['unknown config key "claudeTokens"']);
+  });
+
   it('rejects unknown presets', async () => {
     const root = await project();
     expect((await cli(['--preset', 'nope'], root)).code).not.toBe(0);

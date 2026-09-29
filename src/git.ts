@@ -29,6 +29,29 @@ export async function repoRoot(cwd: string): Promise<string> {
   }
 }
 
+/**
+ * The repository's base branch: `origin/HEAD` if set, else a local or remote `main`/`master`,
+ * else `HEAD` (only uncommitted changes).
+ */
+export async function defaultBase(cwd: string): Promise<string> {
+  const root = await repoRoot(cwd);
+  const head = await git(['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD'], root).catch(() => '');
+  if (head.trim()) return head.trim().replace(/^refs\/remotes\//, '');
+  for (const ref of ['main', 'master', 'origin/main', 'origin/master']) {
+    const ok = await git(['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], root).then(
+      () => true,
+      () => false,
+    );
+    if (ok) return ref;
+  }
+  return 'HEAD';
+}
+
+/** Resolve the special ref `@base` (see `defaultBase`); other refs are returned unchanged. */
+export async function resolveRef(ref: string, cwd: string): Promise<string> {
+  return ref === '@base' ? defaultBase(cwd) : ref;
+}
+
 /** The commit to diff against: the merge-base of `ref` and HEAD, so upstream changes don't leak in. */
 async function diffBase(ref: string, cwd: string): Promise<string> {
   if (ref === 'HEAD') return 'HEAD';
