@@ -11,6 +11,9 @@ All notable changes to this project are documented here. The format follows
   by BM25 over identifiers and paths; the summary lists the matches. `--query-limit` caps them (default 5).
 - MCP `pack_codebase` and `estimate_tokens` accept `query`, `queryLimit`, `related` and `order`.
 - C# and Swift: bodies inside `#elif`/`#else` branches are now stripped too (one parse per branch index).
+- Jupyter notebooks (`.ipynb`) are packed as percent-format scripts: outputs dropped, magics commented out,
+  code cells skeletonized (Python, Julia, Scala, TypeScript and JavaScript kernels). `.ipynb_checkpoints` is
+  ignored by default.
 - `--order stable` (config `order`): least recently changed files first and the diff last, so re-packs share
   a long prefix with the previous pack and hit LLM prompt caches; `--order size` sorts smallest first.
 - Six new languages: Zig, Solidity, Haskell, OCaml (`.ml`, `.mli`), Julia and Objective-C, with outlines and

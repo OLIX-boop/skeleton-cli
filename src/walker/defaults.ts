@@ -15,6 +15,7 @@ export const DEFAULT_IGNORED_DIRS = [
   '.nox',
   '.mypy_cache',
   '.pytest_cache',
+  '.ipynb_checkpoints',
   '.ruff_cache',
   '.next',
   '.nuxt',

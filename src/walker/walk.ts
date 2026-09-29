@@ -98,7 +98,9 @@ export async function walk(root: string, options: WalkOptions = {}): Promise<Wal
     if (include && !include.ignores(f.path)) return { path: f.path, reason: 'not-included' };
     try {
       const { size } = await (opts.followSymlinks ? stat(f.abs) : lstat(f.abs));
-      if (size > maxSize) return { path: f.path, reason: 'too-large', size };
+      // Notebooks shrink a lot once their outputs are dropped: allow 8x the limit.
+      const limit = f.path.toLowerCase().endsWith('.ipynb') ? maxSize * 8 : maxSize;
+      if (size > limit) return { path: f.path, reason: 'too-large', size };
       if (size > 0 && (await isBinaryFile(f.abs))) return { path: f.path, reason: 'binary', size };
       return { path: f.path, absPath: f.abs, size };
     } catch {

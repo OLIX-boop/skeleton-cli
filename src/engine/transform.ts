@@ -2,6 +2,7 @@ import { embeddedForPath, languageForPath, LANGUAGES, registeredExtensions, type
 import { createHash } from 'node:crypto';
 import type { CommentMode } from '../languages/types.js';
 import { cacheStore } from '../cache/store.js';
+import { isNotebook, notebookToScript } from '../languages/notebook.js';
 import { activePool, WorkerFailure } from '../parallel/pool.js';
 import { LruCache } from '../util/lru.js';
 import { redactSecrets, type RedactionHit } from '../security/secrets.js';
@@ -162,7 +163,7 @@ function crashFallback(content: string, language: FileLanguage, bodies: boolean,
 const cache = new LruCache<string, TransformedFile>(20_000, 256 * 1024 * 1024, (f) => f.content.length * 2 + 256);
 
 function cacheKey(filePath: string, content: string, options: TransformOptions): string {
-  const kind = embeddedForPath(filePath)?.id ?? languageForPath(filePath)?.id ?? '';
+  const kind = isNotebook(filePath) ? 'notebook' : (embeddedForPath(filePath)?.id ?? languageForPath(filePath)?.id ?? '');
   return createHash('sha1')
     .update(JSON.stringify([kind, options.mode, options.comments, options.placeholder, options.fallback, options.redact !== false]))
     .update('\0')
@@ -184,7 +185,15 @@ export function clearTransformCache(): void {
 
 /** Transform without consulting caches (what worker threads run). */
 export async function computeTransform(filePath: string, content: string, options: TransformOptions): Promise<TransformedFile> {
-  let result = await transformContent(filePath, content, options);
+  let result: TransformedFile;
+  const notebook = isNotebook(filePath) ? notebookToScript(content) : undefined;
+  if (notebook) {
+    // Transform the notebook's code as a script in its kernel language (outputs dropped).
+    result = await transformContent(filePath + notebook.extension, notebook.text, options);
+    result = { ...result, language: { id: 'notebook', fence: notebook.fence } };
+  } else {
+    result = await transformContent(filePath, content, options);
+  }
   // Only the id and fence are part of the result (not the whole language spec), so results
   // stay small and serializable.
   if (result.language) result = { ...result, language: { id: result.language.id, fence: result.language.fence } };

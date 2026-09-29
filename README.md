@@ -586,6 +586,10 @@ Inputs: `path`, `args`, `format`, `output`, `version` (npm version, default `lat
 | Julia | `.jl` | `function … end` and `macro … end` bodies → `#= ... =#` | modules, structs, abstract types, one-line methods, docstrings |
 | Objective-C | `.m .mm` | methods, C functions, multi-line blocks | `@interface`/`@protocol`, properties, method declarations, imports |
 | Vue / Svelte / Astro | `.vue .svelte .astro` | functions inside `<script>` blocks and Astro frontmatter | templates, markup and styles |
+| Jupyter notebooks | `.ipynb` | outputs and metadata dropped; code cells skeletonized in the kernel's language | cells as a [percent-format](https://jupytext.readthedocs.io/en/latest/formats-scripts.html) script (`# %%`), markdown as comments, magics commented out |
+
+Notebooks may be up to 8× `--max-file-size` on disk, since outputs usually make up most of their size. On
+the *Python Data Science Handbook* notebooks, 9.3M raw tokens pack into 186k.
 
 Every other text file is included verbatim (truncated past the fallback limits in skeleton mode) with a
 matching code-fence language.
