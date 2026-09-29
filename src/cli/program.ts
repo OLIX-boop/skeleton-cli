@@ -95,6 +95,20 @@ Examples:
       setExit(await initCommand(directory, options, io));
     });
 
+  program
+    .command('mcp')
+    .description('run a Model Context Protocol server over stdio (tools: pack_codebase, estimate_tokens, skeleton_file)')
+    .argument('[roots...]', 'directories the tools may read (default: the current directory)')
+    .action(async (roots: string[]) => {
+      const { AstpackMcpServer, serveStdio } = await import('../mcp/server.js');
+      const { resolve } = await import('node:path');
+      const allowed = (roots.length ? roots : ['.']).map((r) => resolve(io.cwd, r));
+      const server = new AstpackMcpServer({ roots: allowed, cwd: allowed[0], log: (m) => io.stderr.write(`${m}\n`) });
+      io.stderr.write(`astpack MCP server ${VERSION} ready (roots: ${allowed.join(', ')})\n`);
+      await serveStdio(server);
+      setExit(0);
+    });
+
   return program;
 }
 
