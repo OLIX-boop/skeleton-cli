@@ -1,5 +1,5 @@
 import type { Node } from 'web-tree-sitter';
-import { braceBlock, innerBraces } from './common.js';
+import { braceBlock, conditionalBlanker, innerBraces } from './common.js';
 import type { BodyReplacement, LanguageSpec } from './types.js';
 
 const WITH_BODY = new Set(['function_declaration', 'init_declaration', 'deinit_declaration', 'subscript_declaration']);
@@ -22,6 +22,8 @@ export const swift: LanguageSpec = {
   fence: 'swift',
   grammar: 'tree-sitter-swift',
   extensions: ['.swift'],
+  // `#if` blocks inside types (e.g. a platform-specific `init`) trip the grammar.
+  preprocess: conditionalBlanker(/^[ \t]*#(if|elseif|else|endif)\b/),
   bodyReplacement,
   candidates: [...WITH_BODY, 'computed_property'],
   outline: { containers: ['class_declaration', 'protocol_declaration'], members: ['protocol_function_declaration'] },

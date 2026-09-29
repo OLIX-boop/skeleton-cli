@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { brotliDecompressSync } from 'node:zlib';
-import { Language, Parser } from 'web-tree-sitter';
+import { Language, Parser, type Tree } from 'web-tree-sitter';
 import type { LanguageSpec } from '../languages/index.js';
 import { IMPORT_RENAMES, renameImports } from './wasm-patch.js';
 
@@ -64,4 +64,40 @@ export async function getParser(spec: LanguageSpec): Promise<Parser> {
     parserCache.set(spec.grammar, parser);
   }
   return parser;
+}
+
+export interface Parsed {
+  tree: Tree;
+  /** The text the tree was built from: the source, or its offset-preserving `preprocess` rewrite. */
+  text: string;
+}
+
+/**
+ * Parse `source`, retrying on the language's `preprocess` rewrite when the first parse has
+ * syntax errors and the rewrite parses cleanly. The caller owns (and must delete) the tree.
+ */
+export async function parseSource(spec: LanguageSpec, source: string): Promise<Parsed> {
+  const parser = await getParser(spec);
+  let tree: Tree | null = null;
+  try {
+    tree = parser.parse(source);
+    if (!tree) throw new Error(`Failed to parse source as ${spec.id}`);
+    if (tree.rootNode.hasError && spec.preprocess) {
+      const rewritten = spec.preprocess(source);
+      if (rewritten !== source && rewritten.length === source.length) {
+        const retry = parser.parse(rewritten);
+        if (retry && !retry.rootNode.hasError) {
+          tree.delete();
+          return { tree: retry, text: rewritten };
+        }
+        retry?.delete();
+      }
+    }
+    return { tree, text: source };
+  } catch (error) {
+    tree?.delete();
+    if ((error as Error).message.startsWith('Failed to parse')) throw error;
+    resetParser(spec);
+    throw new Error(`The ${spec.id} parser crashed: ${(error as Error).message}`);
+  }
 }

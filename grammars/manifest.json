@@ -90,8 +90,12 @@
     "bytes": 49488
   },
   "tree-sitter-swift": {
-    "package": "tree-sitter-wasms@0.1.13",
-    "sha256": "41c4fdb2249a3aa6d87eed0d383081ff09725c2248b4977043a43825980ffcc7",
-    "bytes": 3147876
+    "package": "tree-sitter-swift@0.7.1",
+    "built": "tree-sitter-cli@0.25.10",
+    "patched": [
+      "src/scanner.c"
+    ],
+    "sha256": "e238248f74e7e7888b19b67bdcd3cdb2d41d1476190beb6b4a04810af9243b93",
+    "bytes": 3327295
   }
 }

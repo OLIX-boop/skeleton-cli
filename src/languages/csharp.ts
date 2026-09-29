@@ -1,5 +1,5 @@
 import type { Node } from 'web-tree-sitter';
-import { braceBlock, isMultiline } from './common.js';
+import { braceBlock, conditionalBlanker, isMultiline } from './common.js';
 import type { BodyReplacement, LanguageSpec } from './types.js';
 
 const MEMBERS = new Set([
@@ -15,6 +15,14 @@ const MEMBERS = new Set([
 function arrowPlaceholder(placeholder: string): string {
   return `=> default /* ${placeholder} */`;
 }
+
+/**
+ * Keep the first branch of each `#if` chain and blank the rest along with every directive
+ * line, so `#if` branches that split a declaration header parse cleanly.
+ */
+export const blankPreprocessor = conditionalBlanker(
+  /^[ \t]*#[ \t]*(if|elif|else|endif|region|endregion|pragma|nullable|define|undef|line|error|warning)\b/,
+);
 
 /**
  * C#: bodies of methods, constructors, finalizers, operators, local functions, property
@@ -44,6 +52,7 @@ export const csharp: LanguageSpec = {
   fence: 'csharp',
   grammar: 'tree-sitter-c_sharp',
   extensions: ['.cs'],
+  preprocess: blankPreprocessor,
   bodyReplacement,
   candidates: [...MEMBERS, 'property_declaration', 'indexer_declaration', 'lambda_expression', 'anonymous_method_expression'],
   outline: {

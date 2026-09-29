@@ -37,3 +37,31 @@ export function bodyField(node: Node, placeholder: string, field = 'body'): Body
   const body = node.childForFieldName(field);
   return body ? { node: body, text: braceBlock(placeholder) } : null;
 }
+
+function blankLine(line: string): string {
+  return line.replace(/[^\r\n]/g, ' ');
+}
+
+/**
+ * Build a `LanguageSpec.preprocess` that resolves conditional compilation the way a compiler
+ * would with one set of symbols: keep the first branch of each `#if` chain and blank the
+ * other branches and every directive line. `directive` matches a directive line and captures
+ * its name; `if`, `elif`/`elseif`/`else` and `endif` drive the branches, any other name is
+ * only blanked. Blanked text keeps its length and line breaks, so offsets stay valid.
+ */
+export function conditionalBlanker(directive: RegExp): (source: string) => string {
+  return (source) => {
+    // One entry per open `#if`: whether its current branch is inactive.
+    const stack: boolean[] = [];
+    return source
+      .split(/(?<=\n)/)
+      .map((line) => {
+        const name = directive.exec(line)?.[1];
+        if (name === 'if') stack.push(false);
+        else if ((name === 'elif' || name === 'elseif' || name === 'else') && stack.length > 0) stack[stack.length - 1] = true;
+        else if (name === 'endif') stack.pop();
+        return name || stack.includes(true) ? blankLine(line) : line;
+      })
+      .join('');
+  };
+}

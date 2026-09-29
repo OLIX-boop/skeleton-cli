@@ -35,7 +35,9 @@ Node.js 22.12 or newer is required.
 ## Adding a language
 
 1. Find an npm package that ships the grammar's `.wasm` (most official `tree-sitter-<lang>` packages do), add
-   it to `GRAMMARS` in `scripts/vendor-grammars.mjs` and run `npm run grammars`. Parse a sample and look at
+   it to `GRAMMARS` in `scripts/vendor-grammars.mjs` and run `npm run grammars`. For a package that ships only
+   C sources, use `{ build: '<package>@<version>' }`: it is compiled with the tree-sitter CLI, which needs
+   Emscripten (`emcc` on `PATH`) or Docker; `patches` can fix upstream bugs in the sources before the build. Parse a sample and look at
    `tree.rootNode.toString()` to learn the node types.
 2. Create `src/languages/<name>.ts` exporting a `LanguageSpec`:
    - `candidates`: the node types that own implementation bodies (functions, methods, closures…).

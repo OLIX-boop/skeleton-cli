@@ -612,10 +612,13 @@ back and, on Node 24, over a gigabyte of memory. Set `ASTPACK_WASM_TIERUP=1` to 
 
 ## Limitations
 
-- **Grammars.** astpack ships current upstream grammars (see [`grammars/manifest.json`](grammars/manifest.json));
-  Swift is the exception, as no recent WebAssembly build is published, so very new Swift syntax may be flagged
-  as a parse error. Skeletons are still produced in that case (text outside recognised bodies is kept
-  verbatim) and the summary lists the affected files.
+- **Grammars.** astpack ships current upstream grammars (see [`grammars/manifest.json`](grammars/manifest.json)).
+  Syntax newer than a grammar (e.g. Kotlin 2.1's `$$"..."` strings) may be flagged as a parse error.
+  Skeletons are still produced in that case (text outside recognised bodies is kept verbatim) and the summary
+  lists the affected files.
+- **Conditional compilation.** In C# and Swift, a file that fails to parse is parsed again with the first
+  branch of each `#if` chain kept and the other branches hidden, as a compiler would see it. Bodies in the
+  hidden `#else`/`#elif` branches are then kept verbatim rather than stripped.
 - **Claude token counts are estimates by default.** Anthropic's tokenizer is not public and `cl100k_base`
   undercounts it (typically by 15–20%, more on code). Pass `--claude-tokens` to get exact per-model counts
   from the API. OpenAI counts are exact for the listed encodings. Claude 3.5 Sonnet is retired and can only

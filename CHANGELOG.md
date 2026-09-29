@@ -5,6 +5,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Swift uses tree-sitter-swift 0.7.1, compiled from source, with a fix for scanner state leaking from a file
+  with syntax errors into every later file.
+- C# and Swift files whose `#if` branches split a declaration are parsed again with the first branch of each
+  chain, so they no longer report syntax errors (Newtonsoft.Json: 66 → 0 files, Alamofire: 10 → 6).
+
 ## [0.1.0]
 
 First release.

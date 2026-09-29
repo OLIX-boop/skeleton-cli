@@ -13,7 +13,11 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { brotliCompressSync, constants } from 'node:zlib';
 
-/** grammar file name (without .wasm) → npm package providing it. */
+/**
+ * grammar file name (without .wasm) → npm package providing it. Entries marked `build`
+ * ship C sources but no WASM, so they are compiled with the tree-sitter CLI, which needs
+ * Emscripten (`emcc` on PATH) or Docker/Podman.
+ */
 const GRAMMARS = {
   'tree-sitter-typescript': 'tree-sitter-typescript@0.23.2',
   'tree-sitter-tsx': 'tree-sitter-typescript@0.23.2',
@@ -33,9 +37,39 @@ const GRAMMARS = {
   'tree-sitter-elixir': 'tree-sitter-elixir@0.3.5',
   'tree-sitter-bash': 'tree-sitter-bash@0.25.1',
   'tree-sitter-lua': '@tree-sitter-grammars/tree-sitter-lua@0.4.1',
-  // No newer WASM build is published for Swift; use the prebuilt collection.
-  'tree-sitter-swift': 'tree-sitter-wasms@0.1.13',
+  'tree-sitter-swift': {
+    build: 'tree-sitter-swift@0.7.1',
+    // Upstream never resets its state on `deserialize(NULL, 0)`, which runs at the start of
+    // every parse: a raw-string counter left over from a broken file corrupts every later
+    // file parsed with the same parser.
+    patches: {
+      'src/scanner.c': [
+        [
+          '    if (length < 4) {\n        return;\n    }\n',
+          '    if (length < 4) {\n        ((struct ScannerState *)payload)->ongoing_raw_str_hash_count = 0;\n        return;\n    }\n',
+        ],
+      ],
+    },
+  },
 };
+
+/** tree-sitter CLI matching the runtime's ABI (web-tree-sitter 0.25). */
+const TREE_SITTER_CLI = 'tree-sitter-cli@0.25.10';
+
+function build({ build: spec, patches = {} }, name) {
+  const dir = extract(spec);
+  for (const [file, replacements] of Object.entries(patches)) {
+    let text = readFileSync(join(dir, file), 'utf8');
+    for (const [from, to] of replacements) {
+      if (!text.includes(from)) throw new Error(`${spec}: patch for ${file} no longer applies`);
+      text = text.replace(from, to);
+    }
+    writeFileSync(join(dir, file), text);
+  }
+  const out = join(dir, `${name}.wasm`);
+  execFileSync('npx', ['--yes', TREE_SITTER_CLI, 'build', '--wasm', '-o', out], { cwd: dir, stdio: 'inherit' });
+  return out;
+}
 
 const work = mkdtempSync(join(tmpdir(), 'astpack-grammars-'));
 const target = fileURLToPath(new URL('../grammars/', import.meta.url));
@@ -66,11 +100,12 @@ try {
   const manifest = {};
   let raw = 0;
   let packed = 0;
-  for (const [name, spec] of Object.entries(GRAMMARS)) {
-    const bytes = readFileSync(findWasm(extract(spec), name));
+  for (const [name, entry] of Object.entries(GRAMMARS)) {
+    const spec = typeof entry === 'string' ? entry : entry.build;
+    const bytes = readFileSync(typeof entry === 'string' ? findWasm(extract(spec), name) : build(entry, name));
     const compressed = brotliCompressSync(bytes, { params: { [constants.BROTLI_PARAM_QUALITY]: 11 } });
     writeFileSync(join(staging, `${name}.wasm.br`), compressed);
-    manifest[name] = { package: spec, sha256: createHash('sha256').update(bytes).digest('hex'), bytes: bytes.length };
+    manifest[name] = { package: spec, ...(typeof entry === 'string' ? {} : { built: TREE_SITTER_CLI, ...(entry.patches ? { patched: Object.keys(entry.patches) } : {}) }), sha256: createHash('sha256').update(bytes).digest('hex'), bytes: bytes.length };
     raw += bytes.length;
     packed += compressed.length;
     console.log(`${name.padEnd(24)} ${spec}`);

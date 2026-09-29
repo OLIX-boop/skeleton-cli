@@ -1,6 +1,6 @@
 import type { Node } from 'web-tree-sitter';
 import { LANGUAGES, type LanguageId, type LanguageSpec } from '../languages/index.js';
-import { getParser, resetParser } from './parser.js';
+import { parseSource } from './parser.js';
 
 export interface OutlineResult {
   /** One line per symbol, nested members indented by two spaces. */
@@ -159,17 +159,9 @@ export function outlineTree(source: string, root: Node, spec: LanguageSpec): { l
 /** Outline `source` in the given language. */
 export async function outline(source: string, language: LanguageId | LanguageSpec): Promise<OutlineResult> {
   const spec = typeof language === 'string' ? LANGUAGES[language] : language;
-  const parser = await getParser(spec);
-  let tree;
+  const { tree, text } = await parseSource(spec, source);
   try {
-    tree = parser.parse(source);
-  } catch (error) {
-    resetParser(spec);
-    throw new Error(`The ${spec.id} parser crashed: ${(error as Error).message}`);
-  }
-  if (!tree) throw new Error(`Failed to parse source as ${spec.id}`);
-  try {
-    const { lines } = outlineTree(source, tree.rootNode, spec);
+    const { lines } = outlineTree(text, tree.rootNode, spec);
     return { text: lines.length ? `${lines.join('\n')}\n` : '', symbols: lines.length, hasErrors: tree.rootNode.hasError };
   } finally {
     tree.delete();

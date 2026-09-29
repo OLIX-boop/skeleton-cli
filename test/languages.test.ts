@@ -903,6 +903,92 @@ describe('C# lambdas and anonymous methods', () => {
   });
 });
 
+describe('C# preprocessor directives', () => {
+  it('parses #if branches that split a declaration header', async () => {
+    const src = `namespace N {
+#if NETSTANDARD
+    public sealed class A : IDisposable
+#else
+    public sealed class A : IAsyncDisposable
+#endif
+    {
+        #region Api
+        public void F()
+        {
+#if DEBUG
+            if (verbose) {
+#endif
+            Run();
+#if DEBUG
+            }
+#endif
+        }
+        #endregion
+        public int G() => 1;
+    }
+}
+`;
+    const result = await skeletonize(src, 'csharp');
+    expect(result.hasErrors).toBe(false);
+    expect(result.code).toBe(`namespace N {
+#if NETSTANDARD
+    public sealed class A : IDisposable
+#else
+    public sealed class A : IAsyncDisposable
+#endif
+    {
+        #region Api
+        public void F()
+        ${P}
+        #endregion
+        public int G() => 1;
+    }
+}
+`);
+  });
+
+  it('keeps line offsets when blanking inactive branches', async () => {
+    const { blankPreprocessor } = await import('../src/languages/csharp.js');
+    const src = '#if A\r\nint a;\r\n#elif B\r\nint b;\r\n#else\r\nint c;\r\n#endif\r\nint d;\r\n';
+    const out = blankPreprocessor(src);
+    expect(out.length).toBe(src.length);
+    expect(out.split('\r\n').map((l) => l.trim())).toEqual(['', 'int a;', '', '', '', '', '', 'int d;', '']);
+  });
+});
+
+describe('Swift conditional compilation', () => {
+  it('parses #if blocks inside type declarations', async () => {
+    const src = `struct Instant {
+    let value: Double
+
+    #if canImport(Darwin) || canImport(Glibc)
+    init() {
+        value = now()
+    }
+    #else
+    init() {
+        value = Date().timeIntervalSince1970
+    }
+    #endif
+}
+`;
+    const result = await skeletonize(src, 'swift');
+    expect(result.hasErrors).toBe(false);
+    expect(result.code).toBe(`struct Instant {
+    let value: Double
+
+    #if canImport(Darwin) || canImport(Glibc)
+    init() ${P}
+    #else
+    init() {
+        value = Date().timeIntervalSince1970
+    }
+    #endif
+}
+`);
+  });
+});
+
 describe('modern syntax parses without errors', () => {
   it.each([
     ['typescript', 'class A { accessor x = 1; m() { using r = get(); return 1; } }\nconst c = { a: 1 } satisfies Cfg;\nfunction g<const T>(x: T) { return x; }\n'],
@@ -913,6 +999,7 @@ describe('modern syntax parses without errors', () => {
     ['scala', 'enum Color { case Red, Green }\nclass A(x: Int):\n  def g = 1\n'],
     ['bash', 'f() {\n  cat <<EOF\nhi\nEOF\n}\n[[ $x =~ ^a ]] && g\n'],
     ['php', '<?php\nenum Suit: string { case H = "h"; }\n$f = fn($x) => $x;\n'],
+    ['swift', 'actor Store {\n    func load() async throws -> Int { if let x { return x }; return 0 }\n}\n@MainActor struct V: View {\n    var body: some View { Text("hi") }\n}\n'],
   ] as const)('%s', async (lang, src) => {
     await expectValid(src, lang as LanguageId);
   });

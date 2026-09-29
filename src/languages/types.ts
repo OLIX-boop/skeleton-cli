@@ -87,4 +87,10 @@ export interface LanguageSpec {
   };
   /** Language name used for Markdown code fences. */
   fence: string;
+  /**
+   * Rewrite the source before a second parse attempt, used only when the first parse has
+   * syntax errors. It must keep every character offset (same length, same line breaks) so
+   * edits computed on it apply to the original text. Used for C# preprocessor directives.
+   */
+  preprocess?(source: string): string;
 }
