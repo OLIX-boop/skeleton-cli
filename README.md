@@ -178,8 +178,9 @@ astpack summary
   `--remote owner/repo` packs any repository through a shallow clone.
 - **Token budgets** — `--max-tokens 100k` compresses progressively (skeleton → doc comments only → no
   comments → omit files, tests and docs first) until the document fits. `--split-tokens 32k` writes it as parts.
-- **Accurate analytics** — `tiktoken` counts for `cl100k_base` and `o200k_base`, raw-vs-packed savings,
-  per-model input cost and the largest files.
+- **Accurate analytics** — exact `cl100k_base` and `o200k_base` token counts (tiktoken's encodings, via the
+  pure-JS [`gpt-tokenizer`](https://github.com/niieani/gpt-tokenizer); parity with `tiktoken` is tested),
+  raw-vs-packed savings, per-model input cost and the largest files.
 - **Safe by default** — honours `.gitignore` (nested, and the repo's own when you pack a sub-directory),
   skips dependencies, lockfiles, binaries, `.env` files and private keys, and masks secrets that slipped into
   code.
@@ -380,6 +381,9 @@ This is a safety net, not a guarantee. Keep secrets out of your repository.
 | `astpack init [directory] [--force]` | Create `astpack.config.json` and a commented `.packignore`. |
 | `astpack mcp [roots...]` | Run the MCP server over stdio (see [MCP server](#mcp-server)). |
 
+Environment: `NO_COLOR` / `FORCE_COLOR` control colours; `ASTPACK_WASM_TIERUP=1` keeps V8's default
+WebAssembly tiering (see [How it works](#how-it-works)).
+
 Exit codes: `0` success, `1` error (message on stderr), other non-zero values for invalid arguments.
 
 ## Configuration file
@@ -521,8 +525,12 @@ walk ──► transform ──► render ──► (budget / split) ──► c
    files are complete.
 4. **Budget / split** — optional passes that re-transform files at other compression levels, or partition
    them into parts, measuring the real document each time.
-5. **Count** — `tiktoken` (`cl100k_base`, `o200k_base`) on the final document, plus a raw baseline from each
-   file's original content.
+5. **Count** — `cl100k_base` / `o200k_base` (tiktoken-identical, via `gpt-tokenizer`) on the final document,
+   plus a raw baseline from each file's original content.
+
+The CLI runs WebAssembly with V8's baseline compiler only (`--liftoff-only`, applied by re-launching itself
+once). The grammars contain a few enormous functions; optimizing them costs more time than a CLI run gains
+back and, on Node 24, over a gigabyte of memory. Set `ASTPACK_WASM_TIERUP=1` to keep V8's default tiering.
 
 ## Limitations
 
