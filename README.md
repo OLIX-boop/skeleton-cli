@@ -18,7 +18,7 @@ npx astpack                      # pack the current directory → astpack-output
 npx astpack --focus src/auth -c  # src/auth in full, everything else as a skeleton, copied to the clipboard
 ```
 
-On real projects that is **49–89% fewer tokens** than packing raw source, and up to 92% with `--outline`
+On real projects that is **49–89% fewer tokens** than packing raw source, and up to 91% with `--outline`
 ([benchmarks](#benchmarks)).
 
 ---
@@ -531,12 +531,12 @@ Default settings, shallow clones, cl100k_base tokens for the complete Markdown d
 
 | Repository | Language | Files | Raw (`--full`) | Skeleton | Skeleton + `--comments none` | `--outline` | Time |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| [expressjs/express](https://github.com/expressjs/express) | JavaScript | 213 | 196,492 | 65,301 (−67%) | 55,614 (−72%) | 35,366 (−82%) | 0.4s |
-| [colinhacks/zod](https://github.com/colinhacks/zod) | TypeScript | 685 | 2,532,748 | 563,412 (−78%) | 500,931 (−80%) | 368,730 (−85%) | 2.5s |
-| [psf/requests](https://github.com/psf/requests) | Python | 115 | 720,722 | 94,390 (−87%) | 75,880 (−89%) | 57,998 (−92%) | 0.3s |
-| [spf13/cobra](https://github.com/spf13/cobra) | Go | 64 | 168,338 | 48,237 (−71%) | 34,133 (−80%) | 28,178 (−83%) | 0.2s |
-| [BurntSushi/ripgrep](https://github.com/BurntSushi/ripgrep) | Rust | 227 | 919,228 | 406,790 (−56%) | 302,923 (−67%) | 211,207 (−77%) | 0.9s |
-| [google/gson](https://github.com/google/gson) | Java | 312 | 523,135 | 267,295 (−49%) | 157,362 (−70%) | 103,144 (−80%) | 0.7s |
+| [expressjs/express](https://github.com/expressjs/express) | JavaScript | 213 | 196,492 | 65,301 (−67%) | 55,614 (−72%) | 22,979 (−88%) | 0.4s |
+| [colinhacks/zod](https://github.com/colinhacks/zod) | TypeScript | 685 | 2,532,748 | 563,412 (−78%) | 500,931 (−80%) | 378,091 (−85%) | 2.3s |
+| [psf/requests](https://github.com/psf/requests) | Python | 114 | 720,633 | 94,301 (−87%) | 75,791 (−89%) | 61,514 (−91%) | 0.3s |
+| [spf13/cobra](https://github.com/spf13/cobra) | Go | 63 | 168,269 | 48,168 (−71%) | 34,064 (−80%) | 28,297 (−83%) | 0.2s |
+| [BurntSushi/ripgrep](https://github.com/BurntSushi/ripgrep) | Rust | 227 | 919,234 | 406,790 (−56%) | 302,923 (−67%) | 241,636 (−74%) | 1.0s |
+| [google/gson](https://github.com/google/gson) | Java | 311 | 523,037 | 267,197 (−49%) | 157,264 (−70%) | 104,191 (−80%) | 0.9s |
 
 "Time" is packing only; token counting for the summary adds roughly a second per million characters.
 
