@@ -4,6 +4,7 @@ import type { PackedFile, PackResult } from '../pack.js';
 export function fileNote(file: PackedFile): string | undefined {
   if (file.focused) return '[focus]';
   if (file.strategy === 'truncated') return '[truncated]';
+  if (file.strategy === 'minified') return '[minified]';
   if (file.strategy === 'omitted') return '[omitted]';
   if (file.strategy === 'outline') return '[outline]';
   if (file.strategy === 'full' && file.language) return '[full]';

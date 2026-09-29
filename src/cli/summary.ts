@@ -37,7 +37,7 @@ export function renderSummary(stats: PackStats, options: SummaryOptions): string
   const skippedDetail = Object.entries(stats.skipped)
     .map(([reason, n]) => `${n} ${SKIP_LABELS[reason] ?? reason}`)
     .join(', ');
-  const strategyDetail = ['skeleton', 'outline', 'focus', 'full', 'truncated', 'omitted']
+  const strategyDetail = ['skeleton', 'outline', 'focus', 'full', 'truncated', 'minified', 'omitted']
     .filter((k) => stats.byStrategy[k])
     .map((k) => `${stats.byStrategy[k]} ${k}`)
     .join(', ');
