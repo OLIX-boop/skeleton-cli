@@ -741,3 +741,100 @@ describe('custom placeholders', () => {
     expect(await skel('int f() { return 1; }', 'c')).toBe(`int f() ${P}`);
   });
 });
+
+describe('test suites keep their structure', () => {
+  it('keeps describe blocks and test names in JS/TS', async () => {
+    const src = `describe('User', () => {
+  beforeEach(() => {
+    db.reset();
+  });
+
+  it('validates emails', async () => {
+    expect(await validate('x')).toBe(false);
+  });
+
+  describe.each([1, 2])('with %i', (n) => {
+    test('doubles', () => {
+      expect(n * 2).toBe(n + n);
+    });
+  });
+});
+`;
+    expect(await skel(src, 'typescript')).toBe(`describe('User', () => {
+  beforeEach(() => ${P});
+
+  it('validates emails', async () => ${P});
+
+  describe.each([1, 2])('with %i', (n) => {
+    test('doubles', () => ${P});
+  });
+});
+`);
+  });
+
+  it('keeps RSpec describe/context and strips example bodies', async () => {
+    const src = `RSpec.describe User do
+  let(:user) { build(:user) }
+
+  before do
+    setup!
+  end
+
+  context "when admin" do
+    it "can delete" do
+      expect(user.can?(:delete)).to be true
+    end
+
+    it("is short") { expect(1).to eq 1 }
+  end
+end
+`;
+    expect(await skel(src, 'ruby')).toBe(`RSpec.describe User do
+  let(:user) { build(:user) }
+
+  before do
+    # ...
+  end
+
+  context "when admin" do
+    it "can delete" do
+      # ...
+    end
+
+    it("is short") { "..." }
+  end
+end
+`);
+  });
+
+  it('strips ExUnit test bodies inside describe blocks', async () => {
+    const src = `defmodule UserTest do
+  use ExUnit.Case
+
+  setup do
+    {:ok, user: build()}
+  end
+
+  describe "create/1" do
+    test "inserts", %{user: user} do
+      assert {:ok, _} = create(user)
+    end
+  end
+end
+`;
+    expect(await skel(src, 'elixir')).toBe(`defmodule UserTest do
+  use ExUnit.Case
+
+  setup do
+    # ...
+  end
+
+  describe "create/1" do
+    test "inserts", %{user: user} do
+      # ...
+    end
+  end
+end
+`);
+  });
+});

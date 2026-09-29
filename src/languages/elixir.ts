@@ -1,7 +1,19 @@
 import type { Node } from 'web-tree-sitter';
 import type { BodyReplacement, LanguageSpec } from './types.js';
 
-const DEFINITIONS = new Set(['def', 'defp', 'defmacro', 'defmacrop', 'defguard', 'defguardp']);
+const DEFINITIONS = new Set([
+  'def',
+  'defp',
+  'defmacro',
+  'defmacrop',
+  'defguard',
+  'defguardp',
+  // ExUnit: test implementations (describe blocks keep their structure).
+  'test',
+  'setup',
+  'setup_all',
+  'property',
+]);
 
 /**
  * Elixir: `def`/`defp`/`defmacro` `do ... end` bodies are replaced with a `# ...` comment.

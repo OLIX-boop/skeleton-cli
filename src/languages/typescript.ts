@@ -21,11 +21,28 @@ const FUNCTION_LIKE = new Set([
  *   multiple lines; one-liners are already signature-sized and often carry meaning
  *   (e.g. `const isAdmin = (u: User) => u.role === 'admin'`).
  * - `static { ... }` class blocks are replaced.
+ * - Callbacks passed to `describe`/`context`/`suite` are kept so the names of the tests
+ *   inside survive; each `it`/`test` callback body is stripped.
  * - Everything else (imports, exports, types, interfaces, enums, decorators, class
  *   fields, overload signatures, comments outside bodies) is left untouched.
  */
+/** Test-suite containers whose callbacks hold structure (test names), not implementation. */
+const SUITE_CALLEE = /^[fx]?(describe|context|suite)\b/;
+
+/** Whether `node` is the callback of `describe(...)`/`context(...)`/`suite(...)`. */
+function isSuiteCallback(node: Node): boolean {
+  const args = node.parent;
+  if (args?.type !== 'arguments') return false;
+  const call = args.parent;
+  if (call?.type !== 'call_expression') return false;
+  const callee = call.childForFieldName('function');
+  return !!callee && SUITE_CALLEE.test(callee.text);
+}
+
 function bodyReplacement(node: Node, placeholder: string): BodyReplacement | null {
   if (FUNCTION_LIKE.has(node.type)) {
+    // Keep test suites' structure so test names survive; the tests' own bodies are stripped.
+    if (isSuiteCallback(node)) return null;
     const body = node.childForFieldName('body');
     if (!body) return null; // overloads, abstract/ambient signatures
     if (body.type === 'statement_block') {
