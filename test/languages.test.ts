@@ -463,9 +463,9 @@ import kotlinx.coroutines.flow.Flow
 data class User(val id: Long, val name: String)
 
 class UserService(private val repo: Repo) : Api {
-    init { /* ... */ }
+    init ${P}
 
-    constructor(url: String) : this(Repo(url)) { /* ... */ }
+    constructor(url: String) : this(Repo(url)) ${P}
 
     val count: Int
         get() ${P}
@@ -691,6 +691,48 @@ main "$@"
 `,
     stripped: 2,
   },
+  lua: {
+    lang: 'lua',
+    src: `local M = {}
+
+--- Adds two numbers.
+local function add(a, b)
+  return a + b
+end
+
+function M.greet(name)
+  print("hi " .. name)
+end
+
+function M:method(x) return x end
+
+local cb = function(x)
+  return x * 2
+end
+
+return M
+`,
+    out: `local M = {}
+
+--- Adds two numbers.
+local function add(a, b)
+  --[[ ... ]]
+end
+
+function M.greet(name)
+  --[[ ... ]]
+end
+
+function M:method(x) --[[ ... ]] end
+
+local cb = function(x)
+  --[[ ... ]]
+end
+
+return M
+`,
+    stripped: 4,
+  },
 };
 
 describe.each(Object.entries(cases))('%s', (_name, c) => {
@@ -724,6 +766,7 @@ describe('languageForPath (all languages)', () => {
     ['users.ex', 'elixir'],
     ['mix.exs', 'elixir'],
     ['deploy.sh', 'bash'],
+    ['init.lua', 'lua'],
   ])('%s -> %s', (file, id) => {
     expect(languageForPath(file)?.id).toBe(id);
   });
@@ -836,5 +879,20 @@ end
   end
 end
 `);
+  });
+});
+
+describe('modern syntax parses without errors', () => {
+  it.each([
+    ['typescript', 'class A { accessor x = 1; m() { using r = get(); return 1; } }\nconst c = { a: 1 } satisfies Cfg;\nfunction g<const T>(x: T) { return x; }\n'],
+    ['python', 'type P = tuple[int, int]\ndef f[T](x: T) -> T:\n    match x:\n        case 1:\n            pass\n    return x\n'],
+    ['java', 'record R(int a) { R { check(); } }\nsealed interface S permits A {}\nfinal class A implements S { void m(Object o) { if (o instanceof String s) {} } }\n'],
+    ['csharp', 'public record Point(int X, int Y);\nclass A { required public int P { get; init; } void M() { var x = y is { Z: > 1 }; } }\n'],
+    ['kotlin', 'value class V(val v: Int)\nclass A(val x: Int) {\n    init { check() }\n}\n'],
+    ['scala', 'enum Color { case Red, Green }\nclass A(x: Int):\n  def g = 1\n'],
+    ['bash', 'f() {\n  cat <<EOF\nhi\nEOF\n}\n[[ $x =~ ^a ]] && g\n'],
+    ['php', '<?php\nenum Suit: string { case H = "h"; }\n$f = fn($x) => $x;\n'],
+  ] as const)('%s', async (lang, src) => {
+    await expectValid(src, lang as LanguageId);
   });
 });

@@ -1,0 +1,97 @@
+{
+  "tree-sitter-typescript": {
+    "package": "tree-sitter-typescript@0.23.2",
+    "sha256": "778025db5a8be0e70f8ccc3671e486dfeddd048c25d9e8a70c26de2e1bf6f97d",
+    "bytes": 1413849
+  },
+  "tree-sitter-tsx": {
+    "package": "tree-sitter-typescript@0.23.2",
+    "sha256": "79e5da75ea62855a0cd67177685f0164eac87d5f630b3cbe1e0a099751ad30f8",
+    "bytes": 1445638
+  },
+  "tree-sitter-javascript": {
+    "package": "tree-sitter-javascript@0.25.0",
+    "sha256": "5fb488d0cabb4775a594bab85682de5ad6ce83c0d6ac997a9f82dd084d571240",
+    "bytes": 411770
+  },
+  "tree-sitter-python": {
+    "package": "tree-sitter-python@0.25.0",
+    "sha256": "16108b50df4ee9a30168794252ab55e7c93bfc5765d7fa0aa3e335752c515f47",
+    "bytes": 457883
+  },
+  "tree-sitter-go": {
+    "package": "tree-sitter-go@0.25.0",
+    "sha256": "9504573f352b20be7f2f1911754d710622aedc15afff16d5ed8fb5645681aee7",
+    "bytes": 217182
+  },
+  "tree-sitter-rust": {
+    "package": "tree-sitter-rust@0.24.0",
+    "sha256": "f65f354215611fd94ad34134b3427eb3d58cbb745df7b6509ba722184db73d57",
+    "bytes": 1102547
+  },
+  "tree-sitter-java": {
+    "package": "tree-sitter-java@0.23.5",
+    "sha256": "4fdeac4ca6ca089f06c6f7e562abcac1733cd465728cc7031ebb73c2019122c4",
+    "bytes": 414641
+  },
+  "tree-sitter-c_sharp": {
+    "package": "tree-sitter-c-sharp@0.23.5",
+    "sha256": "6f69e1cae44e1c32c1eccc170dc5a9778fb94ff716f71113fe1f8c4299aa2f40",
+    "bytes": 5350581
+  },
+  "tree-sitter-c": {
+    "package": "tree-sitter-c@0.24.1",
+    "sha256": "c852c2a85ebf2beb636aa3b0ef7f7e70458684d74f6741b20dcb296885bed9f9",
+    "bytes": 625918
+  },
+  "tree-sitter-cpp": {
+    "package": "tree-sitter-cpp@0.23.4",
+    "sha256": "174eb0deb75b2ec7881bcacda9f995648d8e683956e5c2267e69ab6dc503fcbf",
+    "bytes": 3434931
+  },
+  "tree-sitter-ruby": {
+    "package": "tree-sitter-ruby@0.23.1",
+    "sha256": "09a96427d7c72f0613ed470cd9812223fc4a91d6a9c025c0235cc6bd59ff96f4",
+    "bytes": 2106352
+  },
+  "tree-sitter-php": {
+    "package": "tree-sitter-php@0.24.2",
+    "sha256": "d4df6a6ff08c87c3ec4f9cbb785fe09998a0cb570e03f57d7b19b3acfb146aa7",
+    "bytes": 1058041
+  },
+  "tree-sitter-kotlin": {
+    "package": "@tree-sitter-grammars/tree-sitter-kotlin@1.1.0",
+    "sha256": "7009d69453bc8735e438b2818a633efb21c88f99782769abba60dffedfab73f7",
+    "bytes": 3441042
+  },
+  "tree-sitter-scala": {
+    "package": "tree-sitter-scala@0.24.0",
+    "sha256": "b7ec2bb29c19827abcefd18ed5cb5a43596009f96a5d53c5b9d1f9676d7521c3",
+    "bytes": 3786700
+  },
+  "tree-sitter-dart": {
+    "package": "tree-sitter-dart@1.0.0",
+    "sha256": "61085b9b4e9b50132f0c4e25d80adc34ef9aa1dcc8c41e99a04fd6fd5e590252",
+    "bytes": 759584
+  },
+  "tree-sitter-elixir": {
+    "package": "tree-sitter-elixir@0.3.5",
+    "sha256": "ed99093c548c12d43f7e337fd3440e9e2daa2ec671a5e29aadb6c6dcb2232a62",
+    "bytes": 1412267
+  },
+  "tree-sitter-bash": {
+    "package": "tree-sitter-bash@0.25.1",
+    "sha256": "8292919c88a0f7d3fb31d0cd0253ca5a9531bc1ede82b0537f2c63dd8abe6a7a",
+    "bytes": 1358224
+  },
+  "tree-sitter-lua": {
+    "package": "@tree-sitter-grammars/tree-sitter-lua@0.4.1",
+    "sha256": "6d95607fc7d78964cfdf065ccb1ba76be5ed217c5ec0d0a3cace13c59fa1ae43",
+    "bytes": 49488
+  },
+  "tree-sitter-swift": {
+    "package": "tree-sitter-wasms@0.1.13",
+    "sha256": "41c4fdb2249a3aa6d87eed0d383081ff09725c2248b4977043a43825980ffcc7",
+    "bytes": 3147876
+  }
+}

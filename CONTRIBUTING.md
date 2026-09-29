@@ -10,7 +10,7 @@ npm install
 npm test            # vitest (runs from src/, no build needed)
 npm run lint
 npm run typecheck
-npm run build       # tsc + vendored grammars in grammars/
+npm run build       # tsc (grammars/ is committed; `npm run grammars` refreshes it)
 node dist/cli.js .  # try the CLI on this repository
 ```
 
@@ -34,8 +34,9 @@ Node.js 22.12 or newer is required.
 
 ## Adding a language
 
-1. Check the grammar exists in `tree-sitter-wasms` (`ls node_modules/tree-sitter-wasms/out`) and loads with the
-   runtime: parse a sample and look at `tree.rootNode.toString()` to learn the node types.
+1. Find an npm package that ships the grammar's `.wasm` (most official `tree-sitter-<lang>` packages do), add
+   it to `GRAMMARS` in `scripts/vendor-grammars.mjs` and run `npm run grammars`. Parse a sample and look at
+   `tree.rootNode.toString()` to learn the node types.
 2. Create `src/languages/<name>.ts` exporting a `LanguageSpec`:
    - `candidates`: the node types that own implementation bodies (functions, methods, closures…).
    - `bodyReplacement(node, placeholder)`: return `{ node: body, text }` for the span to replace, or `null`.

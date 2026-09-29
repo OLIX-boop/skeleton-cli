@@ -186,6 +186,20 @@ const php: Resolver = {
   },
 };
 
+const lua: Resolver = {
+  extract: (s) => all(s, /\brequire\s*\(?\s*['"]([\w./-]+)['"]/g),
+  resolve(spec, _from, files) {
+    const path = spec.replace(/\./g, '/');
+    for (const candidate of [`${path}.lua`, `${path}/init.lua`]) {
+      if (files.has(candidate)) return candidate;
+      // Common layouts keep modules under lua/ or src/.
+      const matches = files.endingWith(candidate);
+      if (matches.length === 1) return matches[0];
+    }
+    return undefined;
+  },
+};
+
 const RESOLVERS: Record<string, Resolver> = {
   typescript: javascript,
   tsx: javascript,
@@ -203,6 +217,7 @@ const RESOLVERS: Record<string, Resolver> = {
   cpp: cInclude,
   ruby,
   php,
+  lua,
 };
 
 /** Build the internal import graph of a pack (edges to files outside the pack are dropped). */

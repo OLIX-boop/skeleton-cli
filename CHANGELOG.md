@@ -12,7 +12,7 @@ First release.
 ### Added
 
 - Skeleton mode: Tree-sitter body stripping for TypeScript, JavaScript (incl. JSX/TSX), Python, Go, Rust, Java,
-  C#, C, C++, Ruby, PHP, Kotlin, Swift, Scala, Dart, Elixir and Bash, plus `<script>` blocks in Vue, Svelte
+  C#, C, C++, Ruby, PHP, Kotlin, Swift, Scala, Dart, Elixir, Bash and Lua, using current upstream grammars, plus `<script>` blocks in Vue, Svelte
   and Astro files. Output re-parses cleanly and is idempotent.
 - Focus mode (`--focus`) and raw mode (`--full`); unsupported files are included up to a line/character limit.
 - File discovery honouring nested `.gitignore`, the enclosing repository's rules, `.git/info/exclude`,

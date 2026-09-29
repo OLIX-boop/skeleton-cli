@@ -8,6 +8,7 @@ import { elixir } from './elixir.js';
 import { go } from './go.js';
 import { java } from './java.js';
 import { kotlin } from './kotlin.js';
+import { lua } from './lua.js';
 import { php } from './php.js';
 import { python } from './python.js';
 import { ruby } from './ruby.js';
@@ -38,6 +39,7 @@ export const LANGUAGES: Readonly<Record<LanguageId, LanguageSpec>> = {
   dart,
   elixir,
   bash,
+  lua,
 };
 
 const BY_EXTENSION = new Map<string, LanguageSpec>(

@@ -18,7 +18,8 @@ export type LanguageId =
   | 'scala'
   | 'dart'
   | 'elixir'
-  | 'bash';
+  | 'bash'
+  | 'lua';
 
 /** A span of source text to be replaced in the skeleton output. */
 export interface BodyReplacement {

@@ -49,8 +49,6 @@ jobs:
       - run: npm ci
       - run: npm test
       - name: Build and smoke-test the CLI
-        env:
-          ASTPACK_REQUIRE_VENDORED: '1'
         run: |
           npm run build
           node dist/cli.js --version

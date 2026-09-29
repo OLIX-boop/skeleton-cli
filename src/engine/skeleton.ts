@@ -95,7 +95,12 @@ function collectEdits(source: string, root: Node, spec: LanguageSpec, context: R
         const replacement = spec.bodyReplacement(node, context.placeholder, context);
         if (replacement) {
           const editStart = replacement.start ?? replacement.node.startIndex;
-          const editEnd = replacement.end ?? replacement.node.endIndex;
+          let editEnd = replacement.end ?? replacement.node.endIndex;
+          // Some grammars include the trailing newline in a body (Scala's indented blocks);
+          // never swallow it, or the next line would be glued onto the placeholder.
+          if (replacement.end === undefined) {
+            while (editEnd > editStart && /\s/.test(source[editEnd - 1]!)) editEnd--;
+          }
           // Already a placeholder (e.g. re-processing skeleton output): nothing to strip.
           if (source.slice(editStart, editEnd) !== replacement.text) {
             edits.push({ start: editStart, end: editEnd, text: replacement.text });

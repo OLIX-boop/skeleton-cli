@@ -104,6 +104,9 @@ describe('dependencyGraph', () => {
       'rb/lib/helper.rb': '',
       'php/index.php': "<?php\nrequire_once __DIR__ . '/src/boot.php';\n",
       'php/src/boot.php': '<?php\n',
+      'lua/init.lua': "local util = require('app.util')\nlocal cfg = require \"app.config\"\n",
+      'lua/app/util.lua': '',
+      'lua/app/config/init.lua': '',
     });
     expect(graph).toMatchObject({
       'src/main.rs': ['src/config.rs', 'src/net/mod.rs'],
@@ -112,6 +115,7 @@ describe('dependencyGraph', () => {
       'c/main.c': ['c/util.h'],
       'rb/app.rb': ['rb/lib/helper.rb'],
       'php/index.php': ['php/src/boot.php'],
+      'lua/init.lua': ['lua/app/config/init.lua', 'lua/app/util.lua'],
     });
   });
 

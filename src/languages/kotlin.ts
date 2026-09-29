@@ -20,8 +20,11 @@ function bodyReplacement(node: Node, placeholder: string): BodyReplacement | nul
     if (isMultiline(body)) return { node: body, text: `= TODO() /* ${placeholder} */` };
     return null;
   }
-  if (node.type === 'anonymous_initializer') return innerBraces(node, placeholder);
-  if (node.type === 'secondary_constructor') return innerBraces(node, placeholder);
+  if (node.type === 'anonymous_initializer' || node.type === 'secondary_constructor') {
+    // Newer grammars wrap the body in a `block`; older ones put the braces on the node itself.
+    const block = node.namedChildren.find((c) => c?.type === 'block');
+    return block ? { node: block, text: braceBlock(placeholder) } : innerBraces(node, placeholder);
+  }
   return null;
 }
 

@@ -174,7 +174,7 @@ astpack summary
 
 ## Features
 
-- **Skeleton mode** — AST-accurate body stripping for **17 languages** plus Vue, Svelte and Astro single-file
+- **Skeleton mode** — AST-accurate body stripping for **18 languages** plus Vue, Svelte and Astro single-file
   components. The output stays syntactically valid and re-processing it is a no-op.
 - **Focus mode** — keep chosen files, directories or globs verbatim while the rest of the project is a skeleton.
 - **Git-aware** — `--changed main` focuses everything your branch touched; `--diff` embeds the diff itself;
@@ -209,7 +209,8 @@ npm install -g astpack      # then: astpack
 npm install -D astpack      # then: npx astpack, or an npm script
 ```
 
-Requires Node.js 22.12 or newer. Grammars ship pre-compiled (WASM, brotli-compressed), so nothing is built on install.
+Requires Node.js 22.12 or newer. Grammars ship pre-compiled (WASM, brotli-compressed, ~2 MB for all 19), so
+nothing is built or downloaded on install.
 
 ## Usage
 
@@ -517,6 +518,7 @@ Inputs: `path`, `args`, `format`, `output`, `version` (npm version, default `lat
 | Dart | `.dart` | function and method bodies | classes, mixins, fields, one-line arrows |
 | Elixir | `.ex .exs` | `def`/`defp`/`defmacro` and ExUnit `test`/`setup` do-blocks | modules, attributes (`@doc`, `@spec`), `use`/`alias`, `describe` |
 | Bash | `.sh .bash` | function bodies → `{ : '...'; }` | top-level commands and variables |
+| Lua | `.lua` | `function` bodies (local, `M.f`, `M:f`, anonymous) → `--[[ ... ]]` | tables, locals, `require`s, module returns |
 | Vue / Svelte / Astro | `.vue .svelte .astro` | functions inside `<script>` blocks and Astro frontmatter | templates, markup and styles |
 
 Every other text file is included verbatim (truncated past the fallback limits in skeleton mode) with a
@@ -592,16 +594,15 @@ back and, on Node 24, over a gigabyte of memory. Set `ASTPACK_WASM_TIERUP=1` to 
 
 ## Limitations
 
-- **Grammar age.** The pre-built grammars date from the Tree-sitter 0.20 era. Very new syntax (for example
-  TypeScript `accessor` fields, and some Swift/Kotlin constructs) is flagged as a parse error. The skeleton
-  is still produced (text outside recognised bodies is kept verbatim) and the summary lists affected files.
+- **Grammars.** astpack ships current upstream grammars (see [`grammars/manifest.json`](grammars/manifest.json));
+  Swift is the exception, as no recent WebAssembly build is published, so very new Swift syntax may be flagged
+  as a parse error. Skeletons are still produced in that case (text outside recognised bodies is kept
+  verbatim) and the summary lists the affected files.
 - **Claude token counts are estimates by default.** Anthropic's tokenizer is not public and `cl100k_base`
   undercounts it (typically by 15–20%, more on code). Pass `--claude-tokens` to get exact per-model counts
   from the API. OpenAI counts are exact for the listed encodings. Claude 3.5 Sonnet is retired and can only
   be estimated.
 - **Prices change.** The cost table uses list input prices per million tokens and is meant for comparison.
-- **Lua** and a few other languages have grammars that don't work in this WASM build yet, so they fall
-  back to raw inclusion.
 
 ## Development
 
@@ -610,7 +611,8 @@ npm install
 npm test            # vitest
 npm run lint        # eslint
 npm run typecheck   # tsc --noEmit
-npm run build       # tsc + vendor brotli-compressed grammars into grammars/
+npm run build       # tsc
+npm run grammars    # re-fetch the pinned grammars into grammars/ (only when bumping versions)
 npm run schema      # regenerate schema.json from src/config.ts
 node scripts/benchmark.mjs owner/repo …
 ```

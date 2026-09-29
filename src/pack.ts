@@ -63,7 +63,7 @@ const FENCE_BY_EXTENSION: Record<string, string> = {
   md: 'markdown', mdx: 'mdx', json: 'json', jsonc: 'jsonc', json5: 'json5', yml: 'yaml', yaml: 'yaml', toml: 'toml',
   ini: 'ini', cfg: 'ini', xml: 'xml', html: 'html', htm: 'html', css: 'css', scss: 'scss', sass: 'sass', less: 'less',
   zsh: 'zsh', fish: 'fish', ps1: 'powershell', bat: 'batch', cmd: 'batch', sql: 'sql', graphql: 'graphql',
-  gql: 'graphql', proto: 'protobuf', lua: 'lua', erl: 'erlang', hs: 'haskell', ml: 'ocaml', r: 'r', jl: 'julia',
+  gql: 'graphql', proto: 'protobuf', erl: 'erlang', hs: 'haskell', ml: 'ocaml', r: 'r', jl: 'julia',
   tf: 'hcl', hcl: 'hcl', nix: 'nix', zig: 'zig', sol: 'solidity', svg: 'svg', txt: 'text', csv: 'csv', mk: 'makefile',
   cmake: 'cmake', gradle: 'groovy', groovy: 'groovy', pl: 'perl', m: 'objectivec', mm: 'objectivec', vim: 'vim',
   prisma: 'prisma', tex: 'latex', rst: 'rst', adoc: 'asciidoc',

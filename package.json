@@ -49,7 +49,7 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && node scripts/vendor-grammars.mjs",
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
@@ -57,7 +57,8 @@
     "start": "node dist/cli.js",
     "prepublishOnly": "npm run build",
     "schema": "npm run build && node scripts/generate-schema.mjs",
-    "check": "npm run lint && npm run typecheck && npm test"
+    "check": "npm run lint && npm run typecheck && npm test",
+    "grammars": "node scripts/vendor-grammars.mjs"
   },
   "dependencies": {
     "commander": "^15.0.0",
@@ -71,7 +72,6 @@
     "eslint": "^9.39.5",
     "globals": "^17.12.0",
     "tiktoken": "^1.0.22",
-    "tree-sitter-wasms": "^0.1.13",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.71.0",
     "vitest": "^5.0.2"

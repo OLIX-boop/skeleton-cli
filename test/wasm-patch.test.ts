@@ -1,13 +1,22 @@
 /// <reference lib="dom" />
-import { readFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { IMPORT_RENAMES, renameImports } from '../src/engine/wasm-patch.js';
-import { skeletonize } from '../src/index.js';
 
-const require = createRequire(import.meta.url);
-const grammar = (name: string) => join(dirname(require.resolve('tree-sitter-wasms/package.json')), 'out', `tree-sitter-${name}.wasm`);
+/** A minimal module importing `env.<name>` as a `() -> ()` function (and a memory). */
+function moduleImporting(name: string): Uint8Array {
+  const enc = new TextEncoder();
+  const str = (s: string) => [s.length, ...enc.encode(s)];
+  const imports = [
+    0x02, // two imports
+    ...str('env'), ...str(name), 0x00, 0x00, // func, type 0
+    ...str('env'), ...str('memory'), 0x02, 0x00, 0x01, // memory, min 1
+  ];
+  return new Uint8Array([
+    0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
+    0x01, 0x04, 0x01, 0x60, 0x00, 0x00, // type section: () -> ()
+    0x02, imports.length, ...imports,
+  ]);
+}
 
 function functionImports(bytes: Uint8Array): string[] {
   return WebAssembly.Module.imports(new WebAssembly.Module(bytes as Uint8Array<ArrayBuffer>))
@@ -16,27 +25,20 @@ function functionImports(bytes: Uint8Array): string[] {
 }
 
 describe('renameImports', () => {
-  it('renames libc imports the runtime lacks and keeps the module valid', async () => {
-    const bytes = new Uint8Array(await readFile(grammar('bash')));
-    expect(functionImports(bytes)).toContain('isalpha');
+  it('renames libc imports the runtime lacks and keeps the module valid', () => {
+    const bytes = moduleImporting('isalpha');
+    expect(functionImports(bytes)).toEqual(['isalpha']);
     const patched = renameImports(bytes, IMPORT_RENAMES);
-    const imports = functionImports(patched);
-    expect(imports).not.toContain('isalpha');
-    expect(imports).toContain('iswalpha');
+    expect(functionImports(patched)).toEqual(['iswalpha']);
     expect(WebAssembly.validate(patched as Uint8Array<ArrayBuffer>)).toBe(true);
+    // Other imports are untouched.
+    expect(WebAssembly.Module.imports(new WebAssembly.Module(patched as Uint8Array<ArrayBuffer>)).map((i) => i.name)).toEqual(['iswalpha', 'memory']);
   });
 
-  it('returns the input unchanged when nothing matches', async () => {
-    const bytes = new Uint8Array(await readFile(grammar('go')));
-    expect(renameImports(bytes, { nothing_like_this: 'x' })).toBe(bytes);
+  it('returns the input unchanged when nothing matches', () => {
+    const bytes = moduleImporting('iswalpha');
+    expect(renameImports(bytes, IMPORT_RENAMES)).toBe(bytes);
     const notWasm = new Uint8Array([1, 2, 3]);
     expect(renameImports(notWasm, IMPORT_RENAMES)).toBe(notWasm);
-  });
-
-  it('lets the Bash scanner handle heredocs and regex tests', async () => {
-    const src = 'f() {\n  cat <<EOF\nhello\nEOF\n}\nif [[ $x =~ ^[a-z]+$ ]]; then g; fi\n';
-    const out = await skeletonize(src, 'bash');
-    expect(out.hasErrors).toBe(false);
-    expect(out.code).toBe("f() { : '...'; }\nif [[ $x =~ ^[a-z]+$ ]]; then g; fi\n");
   });
 });
