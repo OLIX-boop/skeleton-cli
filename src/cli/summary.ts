@@ -1,3 +1,4 @@
+import type { BudgetReport } from '../budget.js';
 import type { PackStats } from '../tokens/index.js';
 import type { Colors } from './colors.js';
 import { formatBytes, formatNumber, formatPercent, formatUsd } from './format.js';
@@ -9,6 +10,7 @@ export interface SummaryOptions {
   top: number;
   outputLabel: string;
   mode: string;
+  budget?: BudgetReport;
 }
 
 const SKIP_LABELS: Record<string, string> = {
@@ -30,7 +32,7 @@ export function renderSummary(stats: PackStats, options: SummaryOptions): string
   const skippedDetail = Object.entries(stats.skipped)
     .map(([reason, n]) => `${n} ${SKIP_LABELS[reason] ?? reason}`)
     .join(', ');
-  const strategyDetail = ['skeleton', 'focus', 'full', 'truncated']
+  const strategyDetail = ['skeleton', 'focus', 'full', 'truncated', 'omitted']
     .filter((k) => stats.byStrategy[k])
     .map((k) => `${stats.byStrategy[k]} ${k}`)
     .join(', ');
@@ -50,6 +52,17 @@ export function renderSummary(stats: PackStats, options: SummaryOptions): string
   );
   if (cl.baseline > cl.output) {
     rows.push(['Tokens saved', c.green(c.bold(formatPercent(stats.savedRatio)))]);
+  }
+  const budget = options.budget;
+  if (budget) {
+    const status = budget.fits ? c.green('✔ fits') : c.yellow('✘ over');
+    const compressed = budget.changes.filter((ch) => ch.to !== 'omitted').length;
+    const omitted = budget.changes.filter((ch) => ch.to === 'omitted').length;
+    const detail = [compressed && `${compressed} compressed`, omitted && `${omitted} omitted`].filter(Boolean).join(', ');
+    rows.push([
+      'Token budget',
+      `${formatNumber(budget.tokens)} / ${formatNumber(budget.maxTokens)} ${status}${detail ? c.dim(`  (${detail})`) : ''}`,
+    ]);
   }
   out.push(c.bold('astpack summary'), table(rows, ['left', 'left']));
 

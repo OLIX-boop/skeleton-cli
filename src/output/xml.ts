@@ -1,5 +1,5 @@
 import { renderTree } from './tree.js';
-import { ensureTrailingNewline, legend, treeNotes } from './common.js';
+import { contentFiles, ensureTrailingNewline, legend, treeNotes } from './common.js';
 import type { Renderer } from './types.js';
 
 function attr(value: string): string {
@@ -20,7 +20,7 @@ export const renderXml: Renderer = (result, options) => {
     out.push('<directory_structure>', renderTree(result.files.map((f) => f.path), treeNotes(result)), '</directory_structure>');
   }
   out.push('<files>');
-  for (const file of result.files) {
+  for (const file of contentFiles(result)) {
     const attrs = [`path="${attr(file.path)}"`];
     if (file.language) attrs.push(`language="${file.language}"`);
     attrs.push(`strategy="${file.strategy}"`);

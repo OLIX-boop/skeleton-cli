@@ -1,13 +1,14 @@
 import { writeFile } from 'node:fs/promises';
 import { basename, relative, resolve } from 'node:path';
 import { Command, InvalidArgumentError, Option } from 'commander';
+import { fitToBudget, type BudgetReport } from '../budget.js';
 import { pack, type PackOptions } from '../pack.js';
 import { OUTPUT_EXTENSIONS, OUTPUT_FORMATS, render, type OutputFormat } from '../output/index.js';
 import { computeStats, DEFAULT_MODELS, findModel, MODELS } from '../tokens/index.js';
 import { VERSION } from '../version.js';
 import { copyToClipboard } from './clipboard.js';
 import { makeColors, shouldColor } from './colors.js';
-import { parsePositiveInt, parseSize } from './format.js';
+import { formatNumber, parsePositiveInt, parseSize, parseTokenCount } from './format.js';
 import { renderSummary } from './summary.js';
 import { toPosix } from '../walker/rules.js';
 import type { CommentMode } from '../languages/types.js';
@@ -36,6 +37,7 @@ interface RawOptions {
   fallbackChars?: number;
   placeholder?: string;
   comments: CommentMode;
+  maxTokens?: number;
   tree: boolean;
   instructions?: string;
   followSymlinks?: boolean;
@@ -87,6 +89,11 @@ export function buildProgram(): Command {
       new Option('--comments <mode>', 'comments to keep outside focused files: all, docs (documentation only) or none')
         .choices(['all', 'docs', 'none'])
         .default('all'),
+    )
+    .option(
+      '--max-tokens <n>',
+      'fit the output into a token budget (e.g. 100k) by progressively compressing and omitting files',
+      wrapParser(parseTokenCount),
     )
     .option('--no-tree', 'omit the directory tree')
     .option('--instructions <text>', 'instructions placed at the top of the document (prefix with @ to read a file)')
@@ -182,7 +189,7 @@ export async function run(argv: readonly string[], io: CliIO = { stdout: process
         : undefined,
     };
 
-    const result = await pack(root, packOptions);
+    let result = await pack(root, packOptions);
     if (showProgress) io.stderr.write('\r\u001b[K');
     for (const target of result.focusOutsideRoot) {
       io.stderr.write(errColors.yellow(`warning: --focus ${target} is outside ${root}\n`));
@@ -194,13 +201,34 @@ export async function run(argv: readonly string[], io: CliIO = { stdout: process
       io.stderr.write(errColors.yellow(`warning: no files matched --focus ${opts.focus.join(', ')}\n`));
     }
 
-    const document = render(opts.format, result, {
+    const renderOptions = {
       projectName: basename(root),
       tree: opts.tree,
       instructions: await readInstructions(opts.instructions, io.cwd),
       focus: opts.focus,
       version: VERSION,
-    });
+    };
+    let document: string;
+    let budget: BudgetReport | undefined;
+    if (opts.maxTokens) {
+      budget = await fitToBudget(result, {
+        maxTokens: opts.maxTokens,
+        render: (r) => render(opts.format, r, renderOptions),
+        comments: opts.comments,
+        placeholder: opts.placeholder,
+        fallback: packOptions.fallback,
+      });
+      result = budget.result;
+      document = budget.document;
+      if (!budget.fits) {
+        const why = budget.focusTokens > opts.maxTokens ? ' (focused files alone exceed it)' : '';
+        io.stderr.write(
+          errColors.yellow(`warning: output is ${formatNumber(budget.tokens)} tokens, over the ${formatNumber(opts.maxTokens)} budget${why}\n`),
+        );
+      }
+    } else {
+      document = render(opts.format, result, renderOptions);
+    }
 
     const destinations: string[] = [];
     if (outputPath) {
@@ -218,7 +246,7 @@ export async function run(argv: readonly string[], io: CliIO = { stdout: process
     if (!opts.quiet) {
       const stats = computeStats(result, document, { models: opts.models.length ? opts.models : [...DEFAULT_MODELS] });
       const label = destinations.length ? destinations.join(', ') : 'Wrote to stdout';
-      summaryStream.write(`${renderSummary(stats, { colors, top: opts.top, outputLabel: label, mode: result.mode })}\n`);
+      summaryStream.write(`${renderSummary(stats, { colors, top: opts.top, outputLabel: label, mode: result.mode, budget })}\n`);
     }
     return 0;
   } catch (error) {

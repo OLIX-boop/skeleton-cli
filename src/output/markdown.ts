@@ -1,5 +1,5 @@
 import { renderTree } from './tree.js';
-import { ensureTrailingNewline, codeFence, fileNote, legend, treeNotes } from './common.js';
+import { contentFiles, ensureTrailingNewline, codeFence, fileNote, legend, treeNotes } from './common.js';
 import type { Renderer } from './types.js';
 
 export const renderMarkdown: Renderer = (result, options) => {
@@ -20,7 +20,7 @@ export const renderMarkdown: Renderer = (result, options) => {
   }
 
   out.push('## Files', '');
-  for (const file of result.files) {
+  for (const file of contentFiles(result)) {
     const note = fileNote(file);
     const fence = codeFence(file.content);
     out.push(`### \`${file.path}\`${note ? ` ${note}` : ''}`, '');

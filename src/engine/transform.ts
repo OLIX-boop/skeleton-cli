@@ -11,7 +11,9 @@ export type Strategy =
   /** Included verbatim (full mode, focus target, or small unsupported file). */
   | 'full'
   /** Unsupported language in skeleton mode, cut at the fallback limit. */
-  | 'truncated';
+  | 'truncated'
+  /** Dropped to fit a token budget; listed in the tree only. */
+  | 'omitted';
 
 export interface FallbackLimits {
   /** Maximum lines of an unsupported file to include in skeleton mode (default 200). */

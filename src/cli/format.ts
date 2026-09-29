@@ -39,3 +39,13 @@ export function parsePositiveInt(input: string): number {
   if (!Number.isInteger(n) || n < 0) throw new Error(`Expected a non-negative integer, got "${input}"`);
   return n;
 }
+
+/** Parse token counts like `50000`, `50k`, `1.5m`. */
+export function parseTokenCount(input: string): number {
+  const match = /^\s*(\d+(?:\.\d+)?)\s*([km]?)\s*$/i.exec(input.replace(/[_,]/g, ''));
+  if (!match) throw new Error(`Invalid token count: "${input}" (expected e.g. 50000, 100k, 1m)`);
+  const factor = { '': 1, k: 1_000, m: 1_000_000 }[(match[2] ?? '').toLowerCase()] ?? 1;
+  const n = Math.round(Number(match[1]) * factor);
+  if (n <= 0) throw new Error('Token budget must be positive');
+  return n;
+}

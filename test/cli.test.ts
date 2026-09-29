@@ -136,6 +136,19 @@ describe('cli', () => {
     expect(stdout).toContain('```ts\nexport const x = 1;\n```');
   });
 
+  it('fits --max-tokens budgets', async () => {
+    const root = await project();
+    const body = Array.from({ length: 80 }, (_, i) => `  total += compute(${i}) * ${i};`).join('\n');
+    await writeFile(join(root, 'src/big.ts'), `export function big(): number {\n  let total = 0;\n${body}\n  return total;\n}\n`);
+    const { code, stdout, stderr } = await cli(['--stdout', '--no-color', '--full', '--max-tokens', '0.5k'], root);
+    expect(code).toBe(0);
+    expect(stderr).toMatch(/Token budget\s+│ [\d,]+ \/ 500 ✔ fits/);
+    expect(stdout).toContain('{ /* ... */ }');
+    const tight = await cli(['--stdout', '--no-color', '--max-tokens', '10'], root);
+    expect(tight.stderr).toContain('over the 10 budget');
+    expect((await cli(['--max-tokens', 'lots'], root)).stderr).toContain('Invalid token count');
+  });
+
   it('prices selected models', async () => {
     const root = await project();
     const { stderr } = await cli(['--stdout', '--no-color', '--models', 'claude-opus-5.5,gpt-4o-mini'], root);
