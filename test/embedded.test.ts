@@ -69,6 +69,12 @@ function slug(s: string): string {
     expect(out.strippedBodies).toBe(2);
   });
 
+  it('finds Astro frontmatter after leading blank lines', async () => {
+    const src = '\n---\nconst x = 1;\nfunction f() { return 2; }\n---\n<p>{x}</p>\n';
+    const out = await transformFile('a.astro', src, { mode: 'skeleton' });
+    expect(out.content).toBe(`\n---\nconst x = 1;\nfunction f() ${P}\n---\n<p>{x}</p>\n`);
+  });
+
   it('keeps embedded files verbatim in full mode', async () => {
     const src = '<script>function f() { return 1; }</script>';
     const out = await transformFile('A.vue', src, { mode: 'full' });

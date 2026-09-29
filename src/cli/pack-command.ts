@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, dirname, relative, resolve } from 'node:path';
 import type { Command } from 'commander';
@@ -84,12 +85,15 @@ export async function packCommand(directory: string, command: Command, io: CliIO
     let projectName = basename(root);
 
     // Config file: explicit --config, else astpack.config.json in the root or cwd.
+    let configFocus: { dir: string; paths: string[] } | undefined;
     if (opts.config !== false) {
       const path = typeof opts.config === 'string' ? resolve(io.cwd, opts.config) : findConfig(opts.remote ? [io.cwd] : [root, io.cwd]);
       if (path) {
         const loaded = await loadConfig(path);
         for (const w of loaded.warnings) warn(io, errColors, w);
-        opts = applyConfig(opts, loaded.config, (key) => command.getOptionValueSource(key) === 'cli');
+        const fromCli = (key: string) => command.getOptionValueSource(key) === 'cli';
+        opts = applyConfig(opts, loaded.config, fromCli);
+        if (loaded.config.focus && !fromCli('focus')) configFocus = { dir: loaded.dir, paths: loaded.config.focus };
       }
     }
 
@@ -113,7 +117,10 @@ export async function packCommand(directory: string, command: Command, io: CliIO
     }
 
     const changedRef = opts.changed === true ? 'HEAD' : opts.changed || undefined;
-    const focus = [...opts.focus];
+    // Config focus paths are relative to the config file, or to the clone with --remote.
+    const focus = configFocus
+      ? configFocus.paths.map((f) => (/[*?[\]{}]/.test(f) && !existsSync(resolve(configFocus.dir, f)) ? f : resolve(opts.remote ? root : configFocus.dir, f)))
+      : [...opts.focus];
     if (changedRef) {
       const changed = await changedFiles(root, changedRef);
       if (!changed.length) warn(io, errColors, `no files changed vs ${changedRef}`);
@@ -173,8 +180,9 @@ export async function packCommand(directory: string, command: Command, io: CliIO
       diff: diffRef ? { ref: diffRef, text: maybeRedact(await diffText(root, diffRef), opts.redact) } : undefined,
     };
 
-    let document: string;
+    let document: string | undefined;
     let budget: BudgetReport | undefined;
+    const splitting = !!(outputPath && opts.splitTokens);
     if (opts.maxTokens) {
       budget = await fitToBudget(result, {
         maxTokens: opts.maxTokens,
@@ -190,7 +198,7 @@ export async function packCommand(directory: string, command: Command, io: CliIO
         const why = budget.focusTokens > opts.maxTokens ? ' (focused files alone exceed it)' : '';
         warn(io, errColors, `output is ${formatNumber(budget.tokens)} tokens, over the ${formatNumber(opts.maxTokens)} budget${why}`);
       }
-    } else {
+    } else if (!splitting) {
       document = render(opts.format, result, renderOptions);
     }
 
@@ -203,19 +211,23 @@ export async function packCommand(directory: string, command: Command, io: CliIO
     if (outputPath) await mkdir(dirname(outputPath), { recursive: true });
     if (outputPath && opts.splitTokens) {
       parts = splitPack(result, {
-        maxTokens: opts.splitTokens,
+        maxTokens: opts.splitTokens!,
         render: (r, part) => render(opts.format, r, { ...renderOptions, part }),
       });
       for (const part of parts.parts) await writeFile(partPath(outputPath, part.index), part.document);
       const first = display(partPath(outputPath, 1));
       destinations.push(`Wrote ${parts.parts.length} part${parts.parts.length === 1 ? '' : 's'} (${first}${parts.parts.length > 1 ? ' …' : ''})`);
-      for (const path of parts.oversized) warn(io, errColors, `${path} alone exceeds --split-tokens ${formatNumber(opts.splitTokens)}`);
+      for (const path of parts.oversized) warn(io, errColors, `${path} alone exceeds --split-tokens ${formatNumber(opts.splitTokens!)}`);
+      document = parts.parts.map((p) => p.document).join('\n');
     } else if (outputPath) {
+      document ??= render(opts.format, result, renderOptions);
       await writeFile(outputPath, document);
       destinations.push(`Wrote ${display(outputPath)}`);
     } else {
+      document ??= render(opts.format, result, renderOptions);
       io.stdout.write(document);
     }
+    document ??= render(opts.format, result, renderOptions);
     if (opts.clipboard) {
       await copyToClipboard(document);
       destinations.push('copied to clipboard');

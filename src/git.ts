@@ -1,8 +1,8 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 
 export class GitError extends Error {}
 
@@ -43,24 +43,32 @@ async function diffBase(ref: string, cwd: string): Promise<string> {
   }
 }
 
-function lines(output: string): string[] {
-  return output.split('\n').map((l) => l.trim()).filter(Boolean);
+/** Split NUL-terminated `-z` output (paths are then never quoted or escaped). */
+function nulList(output: string): string[] {
+  return output.split('\0').filter(Boolean);
 }
 
 /**
- * Absolute paths of files changed relative to `ref` (default `HEAD`): committed changes since
- * the merge-base, plus staged, unstaged and (for HEAD) untracked files. Deleted files are
- * left out.
+ * Absolute paths of files under `cwd` changed relative to `ref` (default `HEAD`): committed
+ * changes since the merge-base, plus staged, unstaged and untracked files. Deleted files and
+ * changes elsewhere in the repository are left out. Paths are spelled relative to `cwd` as
+ * given, even when it is reached through a symlink.
  */
 export async function changedFiles(cwd: string, ref = 'HEAD'): Promise<string[]> {
   const root = await repoRoot(cwd);
   const base = await diffBase(ref, root);
-  const changed = new Set(lines(await git(['diff', '--name-only', '--no-renames', base, '--'], root)));
-  for (const f of lines(await git(['ls-files', '--others', '--exclude-standard'], root))) changed.add(f);
-  return [...changed]
-    .map((f) => resolve(root, f))
-    .filter((f) => existsSync(f))
-    .sort();
+  const changed = new Set(nulList(await git(['diff', '--name-only', '-z', '--no-renames', base, '--'], root)));
+  for (const f of nulList(await git(['ls-files', '-z', '--others', '--exclude-standard'], root))) changed.add(f);
+  // git reports paths from the real (symlink-resolved) top level.
+  const realCwd = await realpath(cwd);
+  const out: string[] = [];
+  for (const f of changed) {
+    const rel = relative(realCwd, resolve(root, f));
+    if (rel.startsWith('..') || isAbsolute(rel)) continue;
+    const abs = resolve(cwd, rel);
+    if (existsSync(abs)) out.push(abs);
+  }
+  return out.sort();
 }
 
 /** Unified diff of the working tree against `ref`'s merge-base (untracked files excluded). */

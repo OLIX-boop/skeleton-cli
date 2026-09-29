@@ -118,6 +118,8 @@ export function validateConfig(raw: unknown): { config: AstpackConfig; warnings:
 
 export interface LoadedConfig {
   path: string;
+  /** Directory containing the config file. */
+  dir: string;
   config: AstpackConfig;
   warnings: string[];
 }
@@ -132,8 +134,6 @@ export function findConfig(dirs: readonly string[]): string | undefined {
   }
   return undefined;
 }
-
-const GLOB_CHARS = /[*?[\]{}!]/;
 
 /** Load, validate and path-normalize a config file. */
 export async function loadConfig(path: string): Promise<LoadedConfig> {
@@ -154,9 +154,10 @@ export async function loadConfig(path: string): Promise<LoadedConfig> {
   const abs = (p: string) => (isAbsolute(p) ? p : resolve(base, p));
   // Paths in a config file are relative to the file, not to wherever astpack runs.
   if (config.output) config.output = abs(config.output);
-  if (config.focus) config.focus = config.focus.map((f) => (GLOB_CHARS.test(f) && !existsSync(abs(f)) ? f : abs(f)));
+  // `focus` stays relative: it names files in the project being packed, which is resolved
+  // later (it differs from the config's directory with --remote).
   if (config.instructions?.startsWith('@')) config.instructions = `@${abs(config.instructions.slice(1))}`;
-  return { path, config, warnings: warnings.map((w) => `${path}: ${w}`) };
+  return { path, dir: base, config, warnings: warnings.map((w) => `${path}: ${w}`) };
 }
 
 /** Default config written by `astpack init`. */

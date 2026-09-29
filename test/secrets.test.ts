@@ -41,6 +41,11 @@ describe('redactSecrets', () => {
     expect(out.content).toBe('DATABASE_URL = "postgres://admin:[REDACTED:url-credentials]@db.internal:5432/app"');
   });
 
+  it('masks the password, not the host, when the host contains the same text', () => {
+    const out = redactSecrets('postgres://admin:db1host@db1host.internal/x');
+    expect(out.content).toBe('postgres://admin:[REDACTED:url-credentials]@db1host.internal/x');
+  });
+
   it('masks assigned high-entropy secrets but not placeholders or references', () => {
     const src = [
       'password = "hunter2hunter2"',

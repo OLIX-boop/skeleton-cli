@@ -61,6 +61,20 @@ describe('splitPack', () => {
     expect(report.parts[1]!.document).toContain('the directory structure is in part 1');
   });
 
+  it('judges oversized files against the overhead of the part they land in', async () => {
+    const root = await project();
+    const result = await pack(root, { mode: 'full', ignore: ['huge.ts'] });
+    const instructions = 'Context for the task. '.repeat(250); // a large part-1-only header
+    const report = splitPack(result, {
+      maxTokens: 1700,
+      render: (r, part) => render('markdown', r, { projectName: 'p', part, instructions }),
+    });
+    // Each file fits in a later part; only part 1 is too crowded to hold one.
+    expect(report.oversized).toEqual([]);
+    expect(report.parts[0]!.files).toEqual([]);
+    expect(report.parts[0]!.document).toContain('## Directory structure');
+  });
+
   it('returns a single part when everything fits', async () => {
     const root = await project();
     const result = await pack(root, { mode: 'full' });

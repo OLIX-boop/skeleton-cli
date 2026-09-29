@@ -62,7 +62,8 @@ describe('loadConfig', () => {
     });
     const { config } = await loadConfig(join(root, 'astpack.config.json'));
     expect(config.output).toBe(join(root, 'out/pack.md'));
-    expect(config.focus).toEqual([join(root, 'src/a.ts'), '**/*.md']);
+    // focus names files in the packed project; it is resolved later (see pack-command).
+    expect(config.focus).toEqual(['src/a.ts', '**/*.md']);
     expect(config.instructions).toBe(`@${join(root, 'task.txt')}`);
   });
 

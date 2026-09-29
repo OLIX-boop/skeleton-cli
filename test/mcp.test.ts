@@ -89,6 +89,26 @@ describe('MCP server', () => {
     expect(escape.isError).toBe(true);
   });
 
+  it.skipIf(process.platform === 'win32')('does not follow symlinks out of the allowed roots', async () => {
+    const { root, server } = await setup();
+    const outside = await makeTree({ 'secret.txt': 'top secret\n' });
+    cleanups.push(outside.cleanup);
+    const { symlink } = await import('node:fs/promises');
+    await symlink(join(outside.root, 'secret.txt'), join(root, 'link.txt'));
+    const res = await tool(server, 'skeleton_file', { path: join(root, 'link.txt') });
+    expect(res.isError).toBe(true);
+    expect(res.content[0]!.text).not.toContain('top secret');
+    expect(res.content[0]!.text).toContain('outside the allowed roots');
+  });
+
+  it('honours maxTokens in estimate_tokens', async () => {
+    const { root, server } = await setup();
+    const full = await tool(server, 'estimate_tokens', { path: root, mode: 'full' });
+    const budgeted = await tool(server, 'estimate_tokens', { path: root, mode: 'full', maxTokens: 90 });
+    expect(budgeted.content[0]!.text).toMatch(/^Budget 90: /);
+    expect(budgeted.structuredContent!.tokens as number).toBeLessThan(full.structuredContent!.tokens as number);
+  });
+
   it('reports protocol errors', async () => {
     const { server } = await setup();
     expect((await call(server, 'nope')).error?.code).toBe(ErrorCode.MethodNotFound);

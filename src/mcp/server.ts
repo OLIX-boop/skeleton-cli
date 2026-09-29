@@ -1,4 +1,5 @@
-import { stat } from 'node:fs/promises';
+import { realpathSync } from 'node:fs';
+import { realpath, stat } from 'node:fs/promises';
 import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
 import { fitToBudget } from '../budget.js';
 import { transformFile } from '../engine/transform.js';
@@ -114,7 +115,15 @@ export class AstpackMcpServer {
   private readonly log: (message: string) => void;
 
   constructor(options: ServerOptions) {
-    this.roots = options.roots.map((r) => resolve(r));
+    // Compare real paths so a symlink inside a root cannot point the tools outside it.
+    this.roots = options.roots.map((r) => {
+      const abs = resolve(r);
+      try {
+        return realpathSync(abs);
+      } catch {
+        return abs;
+      }
+    });
     this.cwd = resolve(options.cwd ?? this.roots[0] ?? process.cwd());
     this.log = options.log ?? (() => {});
     this.tools = this.defineTools();
@@ -190,15 +199,24 @@ export class AstpackMcpServer {
     }
   }
 
-  /** Resolve a tool path argument and make sure it stays inside an allowed root. */
-  private resolvePath(input: string): string {
+  /**
+   * Resolve a tool path argument to its real path and make sure it stays inside an allowed
+   * root (after following symlinks).
+   */
+  private async resolvePath(input: string): Promise<string> {
     const abs = isAbsolute(input) ? resolve(input) : resolve(this.cwd, input);
+    let real: string;
+    try {
+      real = await realpath(abs);
+    } catch {
+      throw new ToolError(`${input} does not exist`);
+    }
     const allowed = this.roots.some((root) => {
-      const rel = relative(root, abs);
-      return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel) && !rel.startsWith(`..${sep}`));
+      const rel = relative(root, real);
+      return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel));
     });
     if (!allowed) throw new ToolError(`${input} is outside the allowed roots (${this.roots.join(', ')})`);
-    return abs;
+    return real;
   }
 
   private defineTools(): ToolDefinition[] {
@@ -218,7 +236,7 @@ export class AstpackMcpServer {
     };
 
     const runPack = async (args: Record<string, unknown>) => {
-      const root = this.resolvePath(str(args, 'path', true)!);
+      const root = await this.resolvePath(str(args, 'path', true)!);
       const info = await stat(root).catch(() => undefined);
       if (!info?.isDirectory()) throw new ToolError(`${root} is not a directory`);
       const focus = strList(args, 'focus').map((f) => (/[*?[\]{}]/.test(f) ? f : resolve(root, f)));
@@ -259,11 +277,13 @@ export class AstpackMcpServer {
           const { root, result: packed, comments } = await runPack(args);
           const renderOptions = { projectName: basename(root) };
           let result = packed;
-          let document = render(format, result, renderOptions);
+          let document: string;
           if (maxTokens) {
             const report = await fitToBudget(result, { maxTokens, render: (r) => render(format, r, renderOptions), comments });
             result = report.result;
             document = report.document;
+          } else {
+            document = render(format, result, renderOptions);
           }
           const stats = computeStats(result, document, { models: [...DEFAULT_MODELS] });
           return {
@@ -291,11 +311,25 @@ export class AstpackMcpServer {
         },
         run: async (args) => {
           const top = num(args, 'top') ?? 10;
-          const { root, result } = await runPack(args);
-          const document = render('markdown', result, { projectName: basename(root) });
+          const maxTokens = num(args, 'maxTokens');
+          const { root, result: packed, comments } = await runPack(args);
+          const renderOptions = { projectName: basename(root) };
+          let result = packed;
+          let document: string;
+          let budgetLine: string | undefined;
+          if (maxTokens) {
+            const report = await fitToBudget(result, { maxTokens, render: (r) => render('markdown', r, renderOptions), comments });
+            result = report.result;
+            document = report.document;
+            const omitted = report.changes.filter((c) => c.to === 'omitted').length;
+            budgetLine = `Budget ${maxTokens}: ${report.fits ? 'fits' : 'does not fit'} (${report.changes.length - omitted} files compressed, ${omitted} omitted)`;
+          } else {
+            document = render('markdown', result, renderOptions);
+          }
           const stats = computeStats(result, document, { models: [...DEFAULT_MODELS] });
           const cl = stats.tokens.cl100k_base;
           const lines = [
+            ...(budgetLine ? [budgetLine] : []),
             `Files: ${stats.filesIncluded} included, ${stats.entriesScanned - stats.filesIncluded} skipped`,
             `Tokens (cl100k_base): ${cl.output} packed, ${cl.baseline} raw (${Math.round(stats.savedRatio * 100)}% saved)`,
             `Tokens (o200k_base): ${stats.tokens.o200k_base.output} packed`,
@@ -330,7 +364,7 @@ export class AstpackMcpServer {
           additionalProperties: false,
         },
         run: async (args) => {
-          const file = this.resolvePath(str(args, 'path', true)!);
+          const file = await this.resolvePath(str(args, 'path', true)!);
           const info = await stat(file).catch(() => undefined);
           if (!info?.isFile()) throw new ToolError(`${file} is not a file`);
           const content = await readText(file);

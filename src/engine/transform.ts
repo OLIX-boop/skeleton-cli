@@ -100,6 +100,20 @@ async function transformEmbedded(content: string, spec: EmbeddedSpec, bodies: bo
   return { content: out + content.slice(cursor), strippedBodies, strippedComments, parseErrors };
 }
 
+/** A grammar crashed on this input: fall back to what we'd do for an unknown language. */
+function crashFallback(content: string, language: FileLanguage, bodies: boolean, options: TransformOptions): TransformedFile {
+  const cut = bodies ? truncate(content, { ...DEFAULT_FALLBACK, ...options.fallback }) : { content, truncated: false };
+  return {
+    content: cut.content,
+    strategy: cut.truncated ? 'truncated' : 'full',
+    language,
+    strippedBodies: 0,
+    strippedComments: 0,
+    redactions: [],
+    parseErrors: true,
+  };
+}
+
 /** Produce the packaged content for a single file. */
 export async function transformFile(filePath: string, content: string, options: TransformOptions): Promise<TransformedFile> {
   const result = await transformContent(filePath, content, options);
@@ -125,8 +139,12 @@ async function transformContent(filePath: string, content: string, options: Tran
   if (embedded) {
     const language = { id: embedded.id, fence: embedded.fence };
     if (!bodies && comments === 'all') return verbatim(language);
-    const result = await transformEmbedded(content, embedded, bodies, { ...options, comments });
-    return { ...result, strategy: bodies ? 'skeleton' : 'full', language, redactions: [] };
+    try {
+      const result = await transformEmbedded(content, embedded, bodies, { ...options, comments });
+      return { ...result, strategy: bodies ? 'skeleton' : 'full', language, redactions: [] };
+    } catch {
+      return crashFallback(content, language, bodies, options);
+    }
   }
 
   const language = languageForPath(filePath);
@@ -136,9 +154,7 @@ async function transformContent(filePath: string, content: string, options: Tran
     try {
       result = await skeletonize(content, language, { placeholder: options.placeholder, comments, bodies });
     } catch {
-      // A grammar crashed on this input: fall back to what we'd do for an unknown language.
-      const fallback = bodies ? truncate(content, { ...DEFAULT_FALLBACK, ...options.fallback }) : { content, truncated: false };
-      return { ...verbatim(language), content: fallback.content, strategy: fallback.truncated ? 'truncated' : 'full', parseErrors: true };
+      return crashFallback(content, language, bodies, options);
     }
     return {
       content: result.code,

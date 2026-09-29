@@ -67,6 +67,16 @@ describe.skipIf(!hasGit)('git integration', () => {
     expect(changed).toEqual(['src/a.ts', 'src/b.ts', 'src/new.ts']);
   });
 
+  it('handles non-ASCII paths and only reports files under the given directory', async () => {
+    const root = await repo();
+    const { mkdir } = await import('node:fs/promises');
+    await mkdir(join(root, 'other'));
+    await writeFile(join(root, 'src/café.ts'), 'export const c = 1;\n');
+    await writeFile(join(root, 'other/x.ts'), 'export const x = 1;\n');
+    const inSrc = (await changedFiles(join(root, 'src'))).map((p) => p.slice(root.length + 1).replace(/\\/g, '/'));
+    expect(inSrc).toEqual(['src/café.ts']);
+  });
+
   it('lists changes since the merge-base with a branch', async () => {
     const root = await repo();
     g(root, 'checkout', '-qb', 'feature');
@@ -118,6 +128,11 @@ describe.skipIf(!hasGit)('git integration', () => {
     expect(stdout).toContain('export function c() { /* ... */ }');
     // Relative focus paths resolve inside the clone.
     expect(stdout).toContain('### `src/a.ts` [focus]');
+    // Config focus paths also resolve inside the clone.
+    const cwd = await makeTree({ 'astpack.config.json': JSON.stringify({ focus: ['src/b.ts'] }) });
+    cleanups.push(cwd.cleanup);
+    const viaConfig = await cli(['--stdout', '-q', '--remote', `file://${root.replace(/\\/g, '/')}`], cwd.root);
+    expect(viaConfig.stdout).toContain('### `src/b.ts` [focus]');
     const clone = await cloneRemote(parseRemote(`file://${root.replace(/\\/g, '/')}`));
     cleanups.push(clone.cleanup);
     await expect(cloneRemote({ url: 'file:///definitely/missing', name: 'x' })).rejects.toThrow(/failed to clone/);

@@ -51,12 +51,19 @@ export function splitPack(result: PackResult, options: SplitOptions): SplitRepor
     let used = firstOverhead;
     allFiles.forEach((file, i) => {
       const cost = costs[i]!;
-      const overhead = groups.length === 0 ? firstOverhead : laterOverhead;
+      // Part 1's header (tree, instructions, diff) may leave no room for even one file: then
+      // part 1 carries only the header and files start in part 2.
+      if (!current.length && !groups.length && firstOverhead + cost > options.maxTokens && laterOverhead + cost <= options.maxTokens) {
+        groups.push([]);
+        used = laterOverhead;
+      }
       if (current.length && used + cost > options.maxTokens) {
         groups.push(current);
         current = [];
         used = laterOverhead;
       }
+      // Overhead of the part this file actually lands in (part 1 carries the tree etc.).
+      const overhead = groups.length === 0 ? firstOverhead : laterOverhead;
       if (overhead + cost > options.maxTokens) oversized.push(file.path);
       current.push(file);
       used += cost;

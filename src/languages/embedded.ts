@@ -63,11 +63,11 @@ export const astro: EmbeddedSpec = {
   extensions: ['.astro'],
   regions(source) {
     const regions: EmbeddedRegion[] = [];
-    const front = /^\s*---\r?\n([\s\S]*?)\r?\n---/.exec(source);
+    const front = /^\s*---\r?\n([\s\S]*?)\r?\n---/d.exec(source);
     let offset = 0;
-    if (front) {
-      const start = front[0].indexOf('\n') + 1;
-      regions.push({ start, end: start + (front[1] ?? '').length, language: 'typescript' });
+    if (front?.indices?.[1]) {
+      const [start, end] = front.indices[1];
+      regions.push({ start, end, language: 'typescript' });
       offset = front[0].length;
     }
     for (const r of scriptRegions(source.slice(offset), 'typescript')) {

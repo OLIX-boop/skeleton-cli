@@ -88,19 +88,29 @@ function lineAt(text: string, index: number): number {
   return line;
 }
 
+const withIndices = new WeakMap<RegExp, RegExp>();
+
+/** The rule's pattern with the `d` flag, so capture groups report their exact offsets. */
+function indexed(pattern: RegExp): RegExp {
+  if (pattern.hasIndices) return pattern;
+  let re = withIndices.get(pattern);
+  if (!re) {
+    re = new RegExp(pattern.source, `${pattern.flags}d`);
+    withIndices.set(pattern, re);
+  }
+  return re;
+}
+
 /** Mask secrets in `content`, returning the masked text and what was found. */
 export function redactSecrets(content: string, rules: readonly SecretRule[] = SECRET_RULES): RedactionResult {
   const spans: { start: number; end: number; rule: string }[] = [];
   for (const rule of rules) {
-    rule.pattern.lastIndex = 0;
-    for (const match of content.matchAll(rule.pattern)) {
+    for (const match of content.matchAll(indexed(rule.pattern))) {
       const secret = match.groups?.secret;
       let start = match.index;
       let end = start + match[0].length;
-      if (secret !== undefined) {
-        start += match[0].lastIndexOf(secret);
-        end = start + secret.length;
-      }
+      const range = match.indices?.groups?.secret;
+      if (secret !== undefined && range) [start, end] = range;
       if (rule.accept && !rule.accept(secret ?? match[0])) continue;
       spans.push({ start, end, rule: rule.id });
     }
