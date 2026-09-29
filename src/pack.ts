@@ -1,6 +1,5 @@
 import { readFile } from 'node:fs/promises';
 import { transformFile, type FallbackLimits, type FileMode, type Strategy } from './engine/transform.js';
-import type { LanguageId } from './languages/index.js';
 import { mapLimit } from './util/pool.js';
 import { FocusMatcher, walk, type SkippedEntry, type WalkOptions } from './walker/index.js';
 
@@ -26,7 +25,8 @@ export interface PackedFile {
   path: string;
   /** Size on disk in bytes. */
   size: number;
-  language?: LanguageId;
+  /** Language id (e.g. `typescript`, `python`, `vue`), if recognised. */
+  language?: string;
   /** Code-fence language hint. */
   fence: string;
   strategy: Strategy;
@@ -53,12 +53,11 @@ export interface PackResult {
 const FENCE_BY_EXTENSION: Record<string, string> = {
   md: 'markdown', mdx: 'mdx', json: 'json', jsonc: 'jsonc', json5: 'json5', yml: 'yaml', yaml: 'yaml', toml: 'toml',
   ini: 'ini', cfg: 'ini', xml: 'xml', html: 'html', htm: 'html', css: 'css', scss: 'scss', sass: 'sass', less: 'less',
-  sh: 'bash', bash: 'bash', zsh: 'zsh', fish: 'fish', ps1: 'powershell', sql: 'sql', graphql: 'graphql', gql: 'graphql',
-  proto: 'protobuf', dockerfile: 'dockerfile', java: 'java', kt: 'kotlin', kts: 'kotlin', swift: 'swift', c: 'c',
-  h: 'c', cpp: 'cpp', cc: 'cpp', cxx: 'cpp', hpp: 'cpp', hh: 'cpp', cs: 'csharp', rb: 'ruby', php: 'php', lua: 'lua',
-  scala: 'scala', dart: 'dart', ex: 'elixir', exs: 'elixir', erl: 'erlang', hs: 'haskell', ml: 'ocaml', r: 'r',
-  vue: 'vue', svelte: 'svelte', astro: 'astro', tf: 'hcl', hcl: 'hcl', nix: 'nix', zig: 'zig', svg: 'svg', txt: 'text',
-  csv: 'csv', env: 'dotenv', mk: 'makefile', cmake: 'cmake', gradle: 'groovy', groovy: 'groovy', pl: 'perl',
+  zsh: 'zsh', fish: 'fish', ps1: 'powershell', bat: 'batch', cmd: 'batch', sql: 'sql', graphql: 'graphql',
+  gql: 'graphql', proto: 'protobuf', lua: 'lua', erl: 'erlang', hs: 'haskell', ml: 'ocaml', r: 'r', jl: 'julia',
+  tf: 'hcl', hcl: 'hcl', nix: 'nix', zig: 'zig', sol: 'solidity', svg: 'svg', txt: 'text', csv: 'csv', mk: 'makefile',
+  cmake: 'cmake', gradle: 'groovy', groovy: 'groovy', pl: 'perl', m: 'objectivec', mm: 'objectivec', vim: 'vim',
+  prisma: 'prisma', tex: 'latex', rst: 'rst', adoc: 'asciidoc',
 };
 
 const FENCE_BY_NAME: Record<string, string> = {

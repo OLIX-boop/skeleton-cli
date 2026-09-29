@@ -1,6 +1,24 @@
 import type { Node } from 'web-tree-sitter';
 
-export type LanguageId = 'typescript' | 'tsx' | 'javascript' | 'python' | 'go' | 'rust';
+export type LanguageId =
+  | 'typescript'
+  | 'tsx'
+  | 'javascript'
+  | 'python'
+  | 'go'
+  | 'rust'
+  | 'java'
+  | 'csharp'
+  | 'c'
+  | 'cpp'
+  | 'ruby'
+  | 'php'
+  | 'kotlin'
+  | 'swift'
+  | 'scala'
+  | 'dart'
+  | 'elixir'
+  | 'bash';
 
 /** A span of source text to be replaced in the skeleton output. */
 export interface BodyReplacement {
@@ -8,8 +26,10 @@ export interface BodyReplacement {
   node: Node;
   /** Text inserted in place of the node. */
   text: string;
-  /** Start offset of the replaced span, if it should begin before `node` (defaults to `node.startIndex`). */
+  /** Start offset of the replaced span (defaults to `node.startIndex`). */
   start?: number;
+  /** End offset of the replaced span (defaults to `node.endIndex`). */
+  end?: number;
 }
 
 export interface LanguageSpec {

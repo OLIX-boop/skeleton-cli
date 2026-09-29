@@ -1,4 +1,4 @@
-import { languageForPath, type LanguageSpec } from '../languages/index.js';
+import { embeddedForPath, languageForPath, LANGUAGES, type EmbeddedSpec } from '../languages/index.js';
 import { skeletonize } from './skeleton.js';
 
 export type FileMode = 'skeleton' | 'full';
@@ -27,10 +27,16 @@ export interface TransformOptions {
   fallback?: Partial<FallbackLimits>;
 }
 
+/** The language a file was recognised as (a tree-sitter language or an embedded format). */
+export interface FileLanguage {
+  id: string;
+  fence: string;
+}
+
 export interface TransformedFile {
   content: string;
   strategy: Strategy;
-  language?: LanguageSpec;
+  language?: FileLanguage;
   strippedBodies: number;
   /** The parser reported syntax errors; the skeleton is best-effort. */
   parseErrors: boolean;
@@ -61,12 +67,36 @@ export function truncate(content: string, limits: FallbackLimits): { content: st
   };
 }
 
+/** Skeletonize every script region of an embedded-language file, keeping markup verbatim. */
+async function transformEmbedded(content: string, spec: EmbeddedSpec, placeholder?: string) {
+  let out = '';
+  let cursor = 0;
+  let strippedBodies = 0;
+  let parseErrors = false;
+  for (const region of spec.regions(content)) {
+    const result = await skeletonize(content.slice(region.start, region.end), LANGUAGES[region.language], { placeholder });
+    out += content.slice(cursor, region.start) + result.code;
+    cursor = region.end;
+    strippedBodies += result.strippedBodies;
+    parseErrors ||= result.hasErrors;
+  }
+  return { code: out + content.slice(cursor), strippedBodies, parseErrors };
+}
+
 /** Produce the packaged content for a single file. */
 export async function transformFile(
   filePath: string,
   content: string,
   options: TransformOptions,
 ): Promise<TransformedFile> {
+  const embedded = embeddedForPath(filePath);
+  if (embedded) {
+    const language = { id: embedded.id, fence: embedded.fence };
+    if (options.mode === 'full') return { content, strategy: 'full', language, strippedBodies: 0, parseErrors: false };
+    const result = await transformEmbedded(content, embedded, options.placeholder);
+    return { content: result.code, strategy: 'skeleton', language, strippedBodies: result.strippedBodies, parseErrors: result.parseErrors };
+  }
+
   const language = languageForPath(filePath);
   if (options.mode === 'full') {
     return { content, strategy: 'full', language, strippedBodies: 0, parseErrors: false };

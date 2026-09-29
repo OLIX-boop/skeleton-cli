@@ -36,7 +36,7 @@ function collectEdits(source: string, root: Node, spec: LanguageSpec, placeholde
     const skipId = replacement?.node.id;
     if (replacement) {
       const start = replacement.start ?? replacement.node.startIndex;
-      const end = replacement.node.endIndex;
+      const end = replacement.end ?? replacement.node.endIndex;
       // Already a placeholder (e.g. re-processing skeleton output): nothing to strip.
       if (source.slice(start, end) !== replacement.text) {
         edits.push({ start, end, text: replacement.text });
