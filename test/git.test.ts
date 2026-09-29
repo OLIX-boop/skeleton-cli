@@ -113,9 +113,11 @@ describe.skipIf(!hasGit)('git integration', () => {
 
   it('packs a remote repository via a shallow clone', async () => {
     const root = await repo();
-    const { code, stdout } = await cli(['--stdout', '-q', '--remote', `file://${root.replace(/\\/g, '/')}`], root);
+    const { code, stdout } = await cli(['--stdout', '-q', '--remote', `file://${root.replace(/\\/g, '/')}`, '--focus', 'src/a.ts'], root);
     expect(code).toBe(0);
     expect(stdout).toContain('export function c() { /* ... */ }');
+    // Relative focus paths resolve inside the clone.
+    expect(stdout).toContain('### `src/a.ts` [focus]');
     const clone = await cloneRemote(parseRemote(`file://${root.replace(/\\/g, '/')}`));
     cleanups.push(clone.cleanup);
     await expect(cloneRemote({ url: 'file:///definitely/missing', name: 'x' })).rejects.toThrow(/failed to clone/);
