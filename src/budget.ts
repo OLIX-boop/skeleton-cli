@@ -123,8 +123,8 @@ export async function fitToBudget(input: PackResult, options: BudgetOptions): Pr
       const cached = c.variants.get(level);
       if (cached) return cached;
       // A compressed related file is no longer shown as full source.
-      const { related: _related, ...unfocused } = c.variants.get(0)!.file;
-      const base: PackedFile = { ...unfocused, focused: false };
+      const base: PackedFile = { ...c.variants.get(0)!.file, focused: false };
+      delete base.related;
       const target = c.levels[level]!;
       let file: PackedFile;
       if (target.name === 'omitted') {
