@@ -38,10 +38,12 @@ export const renderMarkdown: Renderer = (result, options) => {
     );
   }
 
-  if (first && options.diff?.text.trim()) {
+  const diff = () => {
+    if (!first || !options.diff?.text.trim()) return;
     const fence = codeFence(options.diff.text);
     out.push(`## Git diff (vs \`${options.diff.ref}\`)`, '', `${fence}diff`, ensureTrailingNewline(options.diff.text) + fence, '');
-  }
+  };
+  if (!options.diffLast) diff();
 
   out.push('## Files', '');
   for (const file of contentFiles(result)) {
@@ -50,5 +52,6 @@ export const renderMarkdown: Renderer = (result, options) => {
     out.push(`### \`${file.path}\`${note ? ` ${note}` : ''}`, '');
     out.push(`${fence}${file.fence}`, ensureTrailingNewline(file.content) + fence, '');
   }
+  if (options.diffLast) diff();
   return `${out.join('\n').trimEnd()}\n`;
 };

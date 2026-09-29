@@ -2,6 +2,7 @@ import { Command, InvalidArgumentError, Option } from 'commander';
 import { OUTPUT_FORMATS } from '../output/index.js';
 import { PRESETS, presetNames } from '../presets.js';
 import { MODELS } from '../tokens/index.js';
+import { FILE_ORDERS } from '../order.js';
 import { VERSION } from '../version.js';
 import { parsePositiveInt, parseSize, parseTokenCount } from './format.js';
 import { initCommand } from './init-command.js';
@@ -74,6 +75,11 @@ export function buildProgram(io: CliIO, setExit: (code: number) => void): Comman
       wrapParser(parseTokenCount),
     )
     .option('--no-tree', 'omit the directory tree')
+    .addOption(
+      new Option('--order <order>', 'file order: path, stable (least recently changed first, for prompt caching) or size')
+        .choices([...FILE_ORDERS])
+        .default('path'),
+    )
     .option('--deps', 'include the internal import graph (which file imports which)')
     .option('--instructions <text>', 'instructions placed at the top of the document (prefix with @ to read a file)')
     .option('--follow-symlinks', 'follow symbolic links')

@@ -9,6 +9,8 @@ All notable changes to this project are documented here. The format follows
 
 - `--query <text>` (config `query`, MCP `query`): focus the files most relevant to a task description, ranked
   by BM25 over identifiers and paths; the summary lists the matches. `--query-limit` caps them (default 5).
+- `--order stable` (config `order`): least recently changed files first and the diff last, so re-packs share
+  a long prefix with the previous pack and hit LLM prompt caches; `--order size` sorts smallest first.
 - Six new languages: Zig, Solidity, Haskell, OCaml (`.ml`, `.mli`), Julia and Objective-C, with outlines and
   import resolution for `--deps` / `--related`.
 - Worker threads for transforms and token counts on projects with 200+ files (`ASTPACK_WORKERS` to tune or

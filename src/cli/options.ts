@@ -1,3 +1,4 @@
+import type { FileOrder } from '../order.js';
 import type { CommentMode } from '../languages/types.js';
 import type { OutputFormat } from '../output/index.js';
 
@@ -27,6 +28,7 @@ export interface PackCliOptions {
   maxTokens?: number;
   splitTokens?: number;
   tree: boolean;
+  order?: FileOrder;
   deps?: boolean;
   instructions?: string;
   followSymlinks?: boolean;

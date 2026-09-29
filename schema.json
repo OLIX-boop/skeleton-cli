@@ -132,6 +132,15 @@
       "type": "boolean",
       "description": "Include the directory tree."
     },
+    "order": {
+      "type": "string",
+      "enum": [
+        "path",
+        "stable",
+        "size"
+      ],
+      "description": "File order: path, stable (least recently changed first, for prompt caching) or size."
+    },
     "deps": {
       "type": "boolean",
       "description": "Include the internal import graph."

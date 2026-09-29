@@ -10,6 +10,7 @@ import { PRESETS } from '../presets.js';
 import { registerExtensions, type LanguageId } from '../languages/index.js';
 import { changedFiles, cloneRemote, diffText, parseRemote, resolveRef } from '../git.js';
 import { OUTPUT_EXTENSIONS, render } from '../output/index.js';
+import { orderFiles } from '../order.js';
 import { pack, type PackOptions } from '../pack.js';
 import { partPath, splitPack, type SplitReport } from '../split.js';
 import { redactSecrets } from '../security/secrets.js';
@@ -322,7 +323,7 @@ export async function packCommand(directory: string, command: Command, io: CliIO
           : undefined,
       };
 
-      let result = await pack(root, packOptions);
+      let result = await orderFiles(await pack(root, packOptions), opts.order ?? 'path');
       if (showProgress) io.stderr.write('\r\u001b[K');
       for (const target of result.focusOutsideRoot) warn(io, errColors, `--focus ${target} is outside ${root}`);
       if (result.files.length === 0) warn(io, errColors, `no files included from ${root} (check your ignore/include rules)`);
@@ -342,6 +343,7 @@ export async function packCommand(directory: string, command: Command, io: CliIO
         ],
         version: VERSION,
         diff: diffRef ? { ref: diffRef, text: maybeRedact(await diffText(root, diffRef), opts.redact) } : undefined,
+        diffLast: opts.order === 'stable',
         dependencies: opts.deps ? dependencyGraph(result) : undefined,
       };
 

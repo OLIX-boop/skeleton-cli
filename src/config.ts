@@ -32,6 +32,7 @@ export interface AstpackConfig {
   maxTokens?: number | string;
   splitTokens?: number | string;
   tree?: boolean;
+  order?: 'path' | 'stable' | 'size';
   deps?: boolean;
   instructions?: string;
   followSymlinks?: boolean;
@@ -69,6 +70,7 @@ export const CONFIG_SCHEMA: Record<keyof AstpackConfig, { kind: Kind; descriptio
   maxTokens: { kind: 'number|string', description: 'Token budget for the document (e.g. 100000 or "100k").' },
   splitTokens: { kind: 'number|string', description: 'Split the output into parts of at most this many tokens.' },
   tree: { kind: 'boolean', description: 'Include the directory tree.' },
+  order: { kind: ['path', 'stable', 'size'], description: 'File order: path, stable (least recently changed first, for prompt caching) or size.' },
   deps: { kind: 'boolean', description: 'Include the internal import graph.' },
   instructions: { kind: 'string', description: 'Instructions placed at the top (prefix with @ to read a file).' },
   followSymlinks: { kind: 'boolean', description: 'Follow symbolic links.' },

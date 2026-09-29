@@ -387,6 +387,19 @@ unless you pass `--follow-symlinks` (cycle-safe).
 
 Output is deterministic (no timestamps), which keeps prompt caches warm across runs.
 
+### Prompt caching
+
+Anthropic's and OpenAI's prompt caches reuse the longest unchanged **prefix** of a prompt. With the
+default path order, editing `src/api/a.ts` changes everything after it. `--order stable` lists the least
+recently changed files first (by git history, with uncommitted changes last) and moves the `--diff` to the
+end, so a re-pack after an edit shares almost all of its prefix with the previous one:
+
+```sh
+astpack --order stable --changed --diff -c    # paste into a conversation that already has the last pack
+```
+
+`--order size` (smallest first) is also available. The directory tree stays in path order either way.
+
 ### Dependency graph
 
 ```sh
@@ -438,6 +451,7 @@ This is a safety net, not a guarantee. Keep secrets out of your repository.
 | `--max-tokens <n>` | Fit the document into a token budget, e.g. `100k`. |
 | `--split-tokens <n>` | Split into part files of at most n tokens, e.g. `32k`. |
 | `--no-tree` | Omit the directory tree. |
+| `--order <order>` | File order: `path` (default), `stable` (least recently changed first, [for prompt caching](#prompt-caching)) or `size`. |
 | `--deps` | Include the internal import graph (`file -> files it imports`). |
 | `--instructions <text>` | Instructions at the top of the document; `@file` reads a file. |
 | `--follow-symlinks` | Follow symbolic links. |
