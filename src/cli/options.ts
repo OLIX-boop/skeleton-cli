@@ -33,5 +33,7 @@ export interface PackCliOptions {
   models: string[];
   top: number;
   quiet?: boolean;
+  dryRun?: boolean;
+  statsJson?: string;
   color: boolean;
 }

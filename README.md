@@ -355,6 +355,8 @@ This is a safety net, not a guarantee. Keep secrets out of your repository.
 | `--models <ids>` | Models to price: `claude-3.5-sonnet`, `claude-sonnet-5.5`, `claude-opus-5.5`, `claude-haiku-4.5`, `claude-fable-5.1`, `gpt-4o`, `gpt-4o-mini`, `gpt-4-turbo`. |
 | `--top <n>` | Largest files listed in the summary (default 5; `0` hides the list). |
 | `-q, --quiet` | Don't print the summary. |
+| `--dry-run` | Compute everything and print the summary, but write nothing. |
+| `--stats-json <file>` | Also write the summary statistics as JSON (tokens, costs, per-file sizes) — handy in CI. |
 | `--no-color` | Disable colours (also respects `NO_COLOR` / `FORCE_COLOR`). |
 | `-v, --version` | Print the version. |
 

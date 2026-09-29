@@ -77,6 +77,8 @@ export function buildProgram(io: CliIO, setExit: (code: number) => void): Comman
     )
     .option('--top <n>', 'number of largest files to list in the summary', wrapParser(parsePositiveInt), 5)
     .option('-q, --quiet', 'do not print the summary')
+    .option('--dry-run', 'compute everything and print the summary, but write nothing')
+    .option('--stats-json <file>', 'also write the summary statistics as JSON (for CI)')
     .option('--no-color', 'disable coloured output')
     .addHelpText(
       'after',

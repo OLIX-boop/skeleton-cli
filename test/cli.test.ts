@@ -185,3 +185,27 @@ describe('cli', () => {
     expect(stderr).toContain('error:');
   });
 });
+
+describe('dry runs and machine-readable stats', () => {
+  it('--dry-run writes nothing', async () => {
+    const t = await makeTree({ 'a.ts': 'export function a() {\n  return 1;\n}\n' });
+    cleanups.push(t.cleanup);
+    const { code, stdout } = await cli(['--dry-run', '--no-color'], t.root);
+    expect(code).toBe(0);
+    expect(stdout).toContain('Dry run: nothing written');
+    const { existsSync } = await import('node:fs');
+    expect(existsSync(join(t.root, 'astpack-output.md'))).toBe(false);
+  });
+
+  it('--stats-json writes the statistics', async () => {
+    const t = await makeTree({ 'a.ts': 'export function a() {\n  return 1;\n}\n' });
+    cleanups.push(t.cleanup);
+    const { code } = await cli(['-q', '--stdout', '--stats-json', 'out/stats.json', '--models', 'gpt-4o'], t.root);
+    expect(code).toBe(0);
+    const stats = JSON.parse(await readFile(join(t.root, 'out/stats.json'), 'utf8'));
+    expect(stats.files.included).toBe(1);
+    expect(stats.tokens.cl100k_base.output).toBeGreaterThan(0);
+    expect(stats.costs[0].model).toBe('gpt-4o');
+    expect(stats.filesByTokens[0]).toMatchObject({ path: 'a.ts', strategy: 'skeleton' });
+  });
+});

@@ -9,7 +9,7 @@ import { OUTPUT_EXTENSIONS, render } from '../output/index.js';
 import { pack, type PackOptions } from '../pack.js';
 import { partPath, splitPack, type SplitReport } from '../split.js';
 import { redactSecrets } from '../security/secrets.js';
-import { computeStats, DEFAULT_MODELS, findModel, MODELS } from '../tokens/index.js';
+import { computeStats, DEFAULT_MODELS, findModel, MODELS, type PackStats } from '../tokens/index.js';
 import { VERSION } from '../version.js';
 import { toPosix } from '../walker/rules.js';
 import { copyToClipboard } from './clipboard.js';
@@ -61,6 +61,26 @@ export function applyConfig(opts: PackCliOptions, config: AstpackConfig, fromCli
     }
   }
   return next;
+}
+
+/** Machine-readable summary for `--stats-json`. */
+export function statsToJson(stats: PackStats, extra: { budget?: BudgetReport; parts?: number[] }) {
+  return {
+    files: { included: stats.filesIncluded, scanned: stats.entriesScanned, skipped: stats.skipped, byStrategy: stats.byStrategy },
+    strippedBodies: stats.strippedBodies,
+    strippedComments: stats.strippedComments,
+    output: { bytes: stats.outputBytes, chars: stats.outputChars },
+    tokens: stats.tokens,
+    savedRatio: Number(stats.savedRatio.toFixed(4)),
+    costs: stats.costs.map((c) => ({ model: c.model.id, tokens: c.tokens, usd: Number(c.usd.toFixed(6)), rawUsd: Number(c.baselineUsd.toFixed(6)) })),
+    ...(extra.budget
+      ? { budget: { maxTokens: extra.budget.maxTokens, tokens: extra.budget.tokens, fits: extra.budget.fits, changes: extra.budget.changes } }
+      : {}),
+    ...(extra.parts ? { parts: extra.parts } : {}),
+    redacted: stats.redactedFiles,
+    parseErrors: stats.parseErrorFiles,
+    filesByTokens: stats.files.map((f) => ({ path: f.path, tokens: f.tokens, rawTokens: f.originalTokens, strategy: f.strategy, focused: f.focused })),
+  };
 }
 
 function warn(io: CliIO, c: Colors, message: string) {
@@ -208,37 +228,47 @@ export async function packCommand(directory: string, command: Command, io: CliIO
       return shown && !shown.startsWith('..') ? shown : p;
     };
     let parts: SplitReport | undefined;
-    if (outputPath) await mkdir(dirname(outputPath), { recursive: true });
+    const write = !opts.dryRun;
+    if (outputPath && write) await mkdir(dirname(outputPath), { recursive: true });
     if (outputPath && opts.splitTokens) {
       parts = splitPack(result, {
         maxTokens: opts.splitTokens!,
         render: (r, part) => render(opts.format, r, { ...renderOptions, part }),
       });
-      for (const part of parts.parts) await writeFile(partPath(outputPath, part.index), part.document);
+      if (write) for (const part of parts.parts) await writeFile(partPath(outputPath, part.index), part.document);
       const first = display(partPath(outputPath, 1));
-      destinations.push(`Wrote ${parts.parts.length} part${parts.parts.length === 1 ? '' : 's'} (${first}${parts.parts.length > 1 ? ' …' : ''})`);
+      if (write) destinations.push(`Wrote ${parts.parts.length} part${parts.parts.length === 1 ? '' : 's'} (${first}${parts.parts.length > 1 ? ' …' : ''})`);
       for (const path of parts.oversized) warn(io, errColors, `${path} alone exceeds --split-tokens ${formatNumber(opts.splitTokens!)}`);
       document = parts.parts.map((p) => p.document).join('\n');
     } else if (outputPath) {
       document ??= render(opts.format, result, renderOptions);
-      await writeFile(outputPath, document);
-      destinations.push(`Wrote ${display(outputPath)}`);
+      if (write) {
+        await writeFile(outputPath, document);
+        destinations.push(`Wrote ${display(outputPath)}`);
+      }
     } else {
       document ??= render(opts.format, result, renderOptions);
-      io.stdout.write(document);
+      if (write) io.stdout.write(document);
     }
     document ??= render(opts.format, result, renderOptions);
-    if (opts.clipboard) {
+    if (opts.clipboard && write) {
       await copyToClipboard(document);
       destinations.push('copied to clipboard');
     }
 
-    if (!opts.quiet) {
+    if (!opts.quiet || opts.statsJson) {
       const stats = computeStats(result, document, { models: opts.models.length ? opts.models : [...DEFAULT_MODELS] });
-      const label = destinations.length ? destinations.join(', ') : 'Wrote to stdout';
-      summaryStream.write(
-        `${renderSummary(stats, { colors, top: opts.top, outputLabel: label, mode: result.mode, budget, parts: parts?.parts.map((p) => p.tokens) })}\n`,
-      );
+      if (opts.statsJson) {
+        const statsPath = resolve(io.cwd, opts.statsJson);
+        await mkdir(dirname(statsPath), { recursive: true });
+        await writeFile(statsPath, `${JSON.stringify(statsToJson(stats, { budget, parts: parts?.parts.map((p) => p.tokens) }), null, 2)}\n`);
+      }
+      if (!opts.quiet) {
+        const label = !write ? 'Dry run: nothing written' : destinations.length ? destinations.join(', ') : 'Wrote to stdout';
+        summaryStream.write(
+          `${renderSummary(stats, { colors, top: opts.top, outputLabel: label, mode: result.mode, budget, parts: parts?.parts.map((p) => p.tokens) })}\n`,
+        );
+      }
     }
     return 0;
   } catch (error) {
