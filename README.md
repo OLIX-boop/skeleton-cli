@@ -39,6 +39,7 @@ On real projects that is **49–89% fewer tokens** than packing raw source ([ben
 - [CLI reference](#cli-reference)
 - [Configuration file](#configuration-file)
 - [MCP server](#mcp-server)
+- [GitHub Action](#github-action)
 - [Supported languages](#supported-languages)
 - [Benchmarks](#benchmarks)
 - [Programmatic API](#programmatic-api)
@@ -439,6 +440,23 @@ claude mcp add astpack -- npx -y astpack mcp
   }
 }
 ```
+
+## GitHub Action
+
+Pack the repository in CI, upload the document as an artifact and get the token counts as outputs and in the
+job summary:
+
+```yaml
+- uses: actions/checkout@v5
+- uses: OLIX-boop/skeleton-cli@main
+  id: astpack
+  with:
+    args: --comments docs --max-tokens 150k
+- run: echo "Packed ${{ steps.astpack.outputs.tokens }} tokens (${{ steps.astpack.outputs.saved-percent }}% saved)"
+```
+
+Inputs: `path`, `args`, `format`, `output`, `version` (npm version, default `latest`), `upload`, `artifact-name`,
+`summary`. Outputs: `output-path`, `files`, `tokens`, `raw-tokens`, `saved-percent`.
 
 ## Supported languages
 
