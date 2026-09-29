@@ -30,6 +30,7 @@ On real projects that is **49–89% fewer tokens** than packing raw source, and 
 - [Installation](#installation)
 - [Usage](#usage)
   - [Modes: skeleton, focus, full, outline](#modes-skeleton-focus-full-outline)
+  - [Presets](#presets)
   - [Working with git](#working-with-git)
   - [Token budgets and splitting](#token-budgets-and-splitting)
   - [Comments](#comments)
@@ -258,6 +259,24 @@ export async function fitToBudget(input: PackResult, options: BudgetOptions): Pr
 Files in languages astpack can't parse (Markdown, YAML, SQL, …) are included as-is up to 200 lines /
 16,000 characters in skeleton mode (`--fallback-lines`, `--fallback-chars`), then truncated with a note.
 
+### Presets
+
+`--preset` bundles options and ready-made instructions for common tasks. Anything you pass explicitly (or set in
+a config file) wins.
+
+| Preset | Options | Instructions |
+| --- | --- | --- |
+| `review` | `--changed --diff --comments docs` | Review the diff: bugs, security, error handling, tests, design. |
+| `explain` | `--outline --deps` | Explain the architecture to a new contributor. |
+| `refactor` | `--deps --comments docs` | Plan a refactor of the focused files, listing affected callers. |
+| `debug` | — | Find the root cause of a bug in the focused files (with a placeholder for your description). |
+
+```sh
+astpack --preset review --changed main -c     # review your branch, copy the prompt
+astpack --preset explain --remote owner/repo  # onboarding map of any repository
+astpack --preset refactor --focus src/billing
+```
+
 ### Working with git
 
 ```sh
@@ -384,6 +403,7 @@ This is a safety net, not a guarantee. Keep secrets out of your repository.
 | `--changed [ref]` | Focus files changed vs a git ref (default `HEAD`: uncommitted and untracked). |
 | `--diff [ref]` | Include the git diff vs a ref (default: the `--changed` ref, or `HEAD`). |
 | `--remote <repo>` | Pack a remote repository (`owner/repo`, URL, optionally `#branch`). |
+| `--preset <name>` | `review`, `explain`, `refactor` or `debug`: ready-made options and instructions (see [Presets](#presets)). |
 | `--config <file>` / `--no-config` | Use a specific config file / ignore config files. |
 | `--models <ids>` | Models to price: `claude-3.5-sonnet`, `claude-sonnet-5.5`, `claude-opus-5.5`, `claude-haiku-4.5`, `claude-fable-5.1`, `gpt-4o`, `gpt-4o-mini`, `gpt-4-turbo`. |
 | `--top <n>` | Largest files listed in the summary (default 5; `0` hides the list). |

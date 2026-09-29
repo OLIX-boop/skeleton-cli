@@ -159,6 +159,16 @@
       "type": "number",
       "minimum": 0,
       "description": "Number of largest files listed in the summary."
+    },
+    "preset": {
+      "type": "string",
+      "enum": [
+        "review",
+        "explain",
+        "refactor",
+        "debug"
+      ],
+      "description": "Ready-made options and instructions for a task."
     }
   }
 }

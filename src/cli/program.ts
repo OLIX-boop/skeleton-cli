@@ -1,5 +1,6 @@
 import { Command, InvalidArgumentError, Option } from 'commander';
 import { OUTPUT_FORMATS } from '../output/index.js';
+import { PRESETS, presetNames } from '../presets.js';
 import { MODELS } from '../tokens/index.js';
 import { VERSION } from '../version.js';
 import { parsePositiveInt, parseSize, parseTokenCount } from './format.js';
@@ -67,6 +68,11 @@ export function buildProgram(io: CliIO, setExit: (code: number) => void): Comman
     .option('--instructions <text>', 'instructions placed at the top of the document (prefix with @ to read a file)')
     .option('--follow-symlinks', 'follow symbolic links')
     .option('--no-redact', 'do not mask likely secrets (API keys, tokens, private keys, passwords)')
+    .addOption(
+      new Option('--preset <name>', `ready-made options and instructions: ${presetNames().map((n) => `${n} (${PRESETS[n]!.description})`).join('; ')}`).choices(
+        presetNames(),
+      ),
+    )
     .option('--config <file>', 'config file (default: astpack.config.json in the directory or cwd)')
     .option('--no-config', 'ignore config files')
     .option('--changed [ref]', 'focus files changed vs a git ref (default HEAD: uncommitted and untracked changes)')

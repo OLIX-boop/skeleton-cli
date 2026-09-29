@@ -32,6 +32,7 @@ export interface PackCliOptions {
   diff?: string | boolean;
   remote?: string;
   config?: string | false;
+  preset?: string;
   models: string[];
   top: number;
   quiet?: boolean;

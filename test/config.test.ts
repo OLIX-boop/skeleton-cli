@@ -144,3 +144,27 @@ describe('schema.json', () => {
     expect(onDisk).toEqual(configJsonSchema());
   });
 });
+
+describe('presets', () => {
+  it('explain: outline + deps + instructions', async () => {
+    const root = await project({ 'src/c.ts': "import { a } from './a';\nexport const c = a;\n" });
+    const { code, stdout } = await cli(['--stdout', '-q', '--preset', 'explain'], root);
+    expect(code).toBe(0);
+    expect(stdout).toContain('## Instructions\n\nExplain the architecture');
+    expect(stdout).toContain('[outline]');
+    expect(stdout).toContain('src/c.ts -> src/a.ts');
+  });
+
+  it('lets explicit flags and config values override the preset', async () => {
+    const root = await project({ 'astpack.config.json': JSON.stringify({ deps: false }) });
+    const { stdout } = await cli(['--stdout', '-q', '--preset', 'explain', '--skeleton', '--instructions', 'Mine.'], root);
+    expect(stdout).toContain('## Instructions\n\nMine.');
+    expect(stdout).not.toContain('[outline]');
+    expect(stdout).not.toContain('## Dependencies');
+  });
+
+  it('rejects unknown presets', async () => {
+    const root = await project();
+    expect((await cli(['--preset', 'nope'], root)).code).not.toBe(0);
+  });
+});

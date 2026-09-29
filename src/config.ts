@@ -34,6 +34,7 @@ export interface AstpackConfig {
   diff?: string | boolean;
   models?: string[];
   top?: number;
+  preset?: string;
 }
 
 type Kind = 'string' | 'boolean' | 'number' | 'string[]' | 'number|string' | 'string|boolean' | readonly string[];
@@ -66,6 +67,7 @@ export const CONFIG_SCHEMA: Record<keyof AstpackConfig, { kind: Kind; descriptio
   diff: { kind: 'string|boolean', description: 'Include the git diff vs a ref (true = the --changed ref or HEAD).' },
   models: { kind: 'string[]', description: 'Models to price in the summary.' },
   top: { kind: 'number', description: 'Number of largest files listed in the summary.' },
+  preset: { kind: ['review', 'explain', 'refactor', 'debug'], description: 'Ready-made options and instructions for a task.' },
 };
 
 export class ConfigError extends Error {}

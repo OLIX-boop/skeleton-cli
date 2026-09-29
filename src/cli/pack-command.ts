@@ -5,6 +5,7 @@ import type { Command } from 'commander';
 import { fitToBudget, type BudgetReport } from '../budget.js';
 import { dependencyGraph } from '../deps.js';
 import { findConfig, loadConfig, type AstpackConfig } from '../config.js';
+import { PRESETS } from '../presets.js';
 import { changedFiles, cloneRemote, diffText, parseRemote } from '../git.js';
 import { OUTPUT_EXTENSIONS, render } from '../output/index.js';
 import { pack, type PackOptions } from '../pack.js';
@@ -204,6 +205,7 @@ export async function packCommand(directory: string, command: Command, io: CliIO
 
     // Config file: explicit --config, else astpack.config.json in the root or cwd.
     let configFocus: { dir: string; paths: string[] } | undefined;
+    const configKeys = new Set<string>();
     if (opts.config !== false) {
       const path = typeof opts.config === 'string' ? resolve(io.cwd, opts.config) : findConfig(opts.remote ? [io.cwd] : [root, io.cwd]);
       if (path) {
@@ -211,8 +213,17 @@ export async function packCommand(directory: string, command: Command, io: CliIO
         for (const w of loaded.warnings) warn(io, errColors, w);
         const fromCli = (key: string) => command.getOptionValueSource(key) === 'cli';
         opts = applyConfig(opts, loaded.config, fromCli);
+        for (const key of Object.keys(loaded.config)) configKeys.add(key);
         if (loaded.config.focus && !fromCli('focus')) configFocus = { dir: loaded.dir, paths: loaded.config.focus };
       }
+    }
+
+    // Presets fill in whatever neither the command line nor the config file set.
+    if (opts.preset) {
+      const unset = Object.fromEntries(
+        Object.entries(PRESETS[opts.preset]!.options).filter(([key]) => !configKeys.has(key)),
+      ) as AstpackConfig;
+      opts = applyConfig(opts, unset, (key) => command.getOptionValueSource(key) === 'cli');
     }
 
     const summaryStream = opts.stdout ? io.stderr : io.stdout;
