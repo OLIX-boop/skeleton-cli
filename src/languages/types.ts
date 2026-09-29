@@ -74,6 +74,8 @@ export interface LanguageSpec {
     containers?: readonly string[];
     /** Types summarised by their first line (type aliases, enums, structs…). */
     declarations?: readonly string[];
+    /** Like `declarations`, but only inside a container (interface members, trait methods…). */
+    members?: readonly string[];
     /** Dynamic container check, for grammars where containers are generic calls (Elixir). */
     isContainer?(node: Node): boolean;
   };

@@ -70,15 +70,8 @@ const shared = {
   candidates: [...FUNCTION_LIKE, 'class_static_block'],
   outline: {
     containers: ['class_declaration', 'abstract_class_declaration', 'class', 'interface_declaration', 'internal_module', 'module'],
-    declarations: [
-      'type_alias_declaration',
-      'enum_declaration',
-      'method_signature',
-      'abstract_method_signature',
-      'function_signature',
-      'property_signature',
-      'public_field_definition',
-    ],
+    declarations: ['type_alias_declaration', 'enum_declaration', 'function_signature'],
+    members: ['method_signature', 'abstract_method_signature', 'property_signature', 'public_field_definition'],
   },
 } satisfies Pick<LanguageSpec, 'bodyReplacement' | 'candidates' | 'outline'>;
 

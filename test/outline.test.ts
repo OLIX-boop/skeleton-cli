@@ -116,3 +116,16 @@ describe('outline mode in transformFile', () => {
     expect(md).toMatchObject({ strategy: 'full', content: '# Hi\n' });
   });
 });
+
+describe('outline edge cases', () => {
+  it('ignores member-like nodes outside containers', async () => {
+    const src = "export const VERSION: string = (require('../package.json') as { version: string }).version;\n";
+    expect(await o(src, 'typescript')).toBe('');
+  });
+
+  it('falls back to the skeleton for files without declarations', async () => {
+    const barrel = "export { a } from './a.js';\nexport * from './b.js';\n";
+    const out = await transformFile('index.ts', barrel, { mode: 'outline' });
+    expect(out).toMatchObject({ strategy: 'skeleton', content: barrel });
+  });
+});

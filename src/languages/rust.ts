@@ -29,6 +29,7 @@ export const rust: LanguageSpec = {
   candidates: ['function_item', 'closure_expression'],
   outline: {
     containers: ['impl_item', 'trait_item', 'mod_item'],
-    declarations: ['struct_item', 'enum_item', 'type_item', 'union_item', 'macro_definition', 'function_signature_item', 'const_item', 'static_item'],
+    declarations: ['struct_item', 'enum_item', 'type_item', 'union_item', 'macro_definition', 'const_item', 'static_item'],
+    members: ['function_signature_item'],
   },
 };

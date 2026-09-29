@@ -48,6 +48,7 @@ export const csharp: LanguageSpec = {
   candidates: [...MEMBERS, 'property_declaration', 'indexer_declaration', 'lambda_expression', 'anonymous_method_expression'],
   outline: {
     containers: ['class_declaration', 'struct_declaration', 'interface_declaration', 'record_declaration', 'namespace_declaration'],
-    declarations: ['enum_declaration', 'delegate_declaration', 'method_declaration', 'property_declaration', 'event_declaration'],
+    declarations: ['enum_declaration', 'delegate_declaration'],
+    members: ['method_declaration', 'property_declaration', 'event_declaration'],
   },
 };

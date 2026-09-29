@@ -39,6 +39,6 @@ export const java: LanguageSpec = {
   candidates: ['method_declaration', 'constructor_declaration', 'compact_constructor_declaration', 'lambda_expression', 'static_initializer', 'block'],
   outline: {
     containers: ['class_declaration', 'interface_declaration', 'enum_declaration', 'record_declaration', 'annotation_type_declaration'],
-    declarations: ['method_declaration'],
+    members: ['method_declaration'],
   },
 };

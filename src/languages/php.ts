@@ -22,5 +22,5 @@ export const php: LanguageSpec = {
   extensions: ['.php'],
   bodyReplacement,
   candidates: [...WITH_BODY],
-  outline: { containers: ['class_declaration', 'interface_declaration', 'trait_declaration', 'enum_declaration'], declarations: ['method_declaration'] },
+  outline: { containers: ['class_declaration', 'interface_declaration', 'trait_declaration', 'enum_declaration'], members: ['method_declaration'] },
 };

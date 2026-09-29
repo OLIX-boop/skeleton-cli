@@ -191,8 +191,9 @@ export async function transformFile(filePath: string, content: string, options: 
 async function transformContent(filePath: string, content: string, options: TransformOptions): Promise<TransformedFile> {
   if (options.mode === 'outline') {
     const result = await outlineContent(filePath, content);
-    if (result) return result;
-    // No outline for this file type: treat it like skeleton mode (truncate non-code files).
+    if (result?.content.trim()) return result;
+    // No outline for this file type, or nothing to list (re-export barrels, config files):
+    // treat it like skeleton mode.
     return transformContent(filePath, content, { ...options, mode: 'skeleton' });
   }
   const comments = options.comments ?? 'all';

@@ -73,6 +73,7 @@ export function outlineTree(source: string, root: Node, spec: LanguageSpec): { l
   const functions = new Set(spec.candidates);
   const containers = new Set(spec.outline?.containers ?? []);
   const declarations = new Set(spec.outline?.declarations ?? []);
+  const members = new Set(spec.outline?.members ?? []);
   const context = { placeholder: '...', comments: 'all' as const };
 
   const visit = (node: Node, depth: number) => {
@@ -94,7 +95,7 @@ export function outlineTree(source: string, root: Node, spec: LanguageSpec): { l
         return; // nested functions are implementation details
       }
     }
-    if (declarations.has(node.type)) {
+    if (declarations.has(node.type) || (depth > 0 && members.has(node.type))) {
       lines.push(indent + firstLine(source, node));
       return;
     }

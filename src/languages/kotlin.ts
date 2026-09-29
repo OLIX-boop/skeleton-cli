@@ -32,5 +32,5 @@ export const kotlin: LanguageSpec = {
   extensions: ['.kt', '.kts'],
   bodyReplacement,
   candidates: ['function_declaration', 'getter', 'setter', 'anonymous_initializer', 'secondary_constructor'],
-  outline: { containers: ['class_declaration', 'object_declaration', 'companion_object'], declarations: ['function_declaration'] },
+  outline: { containers: ['class_declaration', 'object_declaration', 'companion_object'], members: ['function_declaration'] },
 };

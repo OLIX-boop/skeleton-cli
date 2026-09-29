@@ -22,5 +22,5 @@ export const scala: LanguageSpec = {
   extensions: ['.scala', '.sc'],
   bodyReplacement,
   candidates: ['function_definition'],
-  outline: { containers: ['class_definition', 'object_definition', 'trait_definition'], declarations: ['function_declaration'] },
+  outline: { containers: ['class_definition', 'object_definition', 'trait_definition'], members: ['function_declaration'] },
 };
