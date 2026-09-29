@@ -13,7 +13,12 @@ const MAX_LINE = 240;
 
 /** Collapse a declaration header to one tidy line. */
 function tidy(text: string): string {
-  let line = text.replace(/\s+/g, ' ').trim();
+  let line = text
+    .replace(/\s+/g, ' ')
+    // Collapsed multi-line parameter lists: `( a, b, )` -> `(a, b)`.
+    .replace(/([([])\s+/g, '$1')
+    .replace(/,?\s+([)\]])/g, '$1')
+    .trim();
   line = line.replace(/\s*(\{|:|=|;|\bdo|\bwhere|\bbegin)\s*$/u, '').trim();
   return line.length > MAX_LINE ? `${line.slice(0, MAX_LINE - 1)}…` : line;
 }
@@ -51,10 +56,32 @@ function headerStart(source: string, node: Node): number {
   return Math.max(start, floor);
 }
 
+const COMMENT_TYPES = ['comment', 'line_comment', 'block_comment', 'multiline_comment', 'documentation_comment'];
+
+/** `source[start, end)` with any comments inside the declaration cut out. */
+function withoutComments(source: string, node: Node, start: number, end: number): string {
+  const comments = node.descendantsOfType(COMMENT_TYPES).filter((c): c is Node => !!c && c.startIndex >= start && c.endIndex <= end);
+  // Python puts a comment after `def f():` as a sibling that precedes the body.
+  for (let sib = node.firstChild; sib; sib = sib.nextSibling) {
+    if (COMMENT_TYPES.includes(sib.type) && sib.startIndex >= start && sib.endIndex <= end && !comments.some((c) => c.id === sib!.id)) {
+      comments.push(sib);
+    }
+  }
+  if (!comments.length) return source.slice(start, end);
+  comments.sort((a, b) => a.startIndex - b.startIndex);
+  let out = '';
+  let cursor = start;
+  for (const c of comments) {
+    if (c.startIndex < cursor) continue;
+    out += `${source.slice(cursor, c.startIndex)} `;
+    cursor = c.endIndex;
+  }
+  return out + source.slice(cursor, end);
+}
+
 function headerFrom(source: string, node: Node, end: number): string {
   const start = headerStart(source, node);
-  // A header never spans past the first line of a one-liner container.
-  return tidy(source.slice(start, Math.max(end, node.startIndex)));
+  return tidy(withoutComments(source, node, start, Math.max(end, node.startIndex)));
 }
 
 function firstLine(source: string, node: Node): string {

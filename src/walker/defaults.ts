@@ -84,6 +84,10 @@ export const DEFAULT_GENERATED_PATTERNS = [
   '.DS_Store',
   'Thumbs.db',
   '*.log',
+  // VCS metadata with no meaning for a model
+  '.git-blame-ignore-revs',
+  '.mailmap',
+  '.gitattributes',
   'astpack-output.*',
   // astpack's own configuration
   'astpack.config.json',

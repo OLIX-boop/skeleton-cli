@@ -129,3 +129,12 @@ describe('outline edge cases', () => {
     expect(out).toMatchObject({ strategy: 'skeleton', content: barrel });
   });
 });
+
+describe('outline headers', () => {
+  it('drops comments and tidies multi-line signatures', async () => {
+    const py = 'def check(\n    a: str,\n    b: int | None,\n) -> None:  # legacy\n    return None\n';
+    expect(await o(py, 'python')).toBe('def check(a: str, b: int | None) -> None\n');
+    const java = 'class A {\n  @SuppressWarnings("x") // why\n  public A(int x) {}\n}\n';
+    expect(await o(java, 'java')).toBe('class A\n  @SuppressWarnings("x") public A(int x)\n');
+  });
+});
