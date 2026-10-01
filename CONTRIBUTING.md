@@ -62,5 +62,18 @@ If the grammar imports libc symbols the runtime lacks, add them to `IMPORT_RENAM
 ## Releasing
 
 Bump the version in `package.json`, move the *Unreleased* changelog entries under the new version, commit,
-then push a matching tag (`git tag v0.2.0 && git push --tags`). The release workflow tests, builds and
-publishes to npm with provenance (it needs an `NPM_TOKEN` repository secret).
+then push a matching tag (`git tag v0.2.1 && git push origin v0.2.1`). The release workflow tests, builds,
+publishes to npm with provenance and creates the GitHub release.
+
+npm access, in order of preference:
+
+1. **Trusted publishing** (no secret): on npmjs.com, *astpack → Settings → Trusted Publisher → GitHub
+   Actions*, with owner `OLIX-boop`, repository `skeleton-cli` and workflow `release.yml`. Leave the
+   `NPM_TOKEN` secret unset (or delete it): when it exists, the workflow uses it instead.
+2. **A token**: a *granular access token* with read and write access and **Bypass two-factor
+   authentication** checked (the account needs 2FA enabled for that option to appear), stored as the
+   `NPM_TOKEN` repository secret.
+
+If a release fails after the tag was pushed (e.g. npm refused it), fix the access and re-run it from
+*Actions → Release → Run workflow* with the tag. A version that is already on npm (say, published by hand
+with `npm publish`) is skipped, and an existing GitHub release is left alone, so re-runs are safe.
