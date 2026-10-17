@@ -509,6 +509,30 @@ merged; paths are relative to the config file.
 cloned can't switch it on. `astpack init` writes a starter file. The published [`schema.json`](schema.json) gives editors completion and
 validation. Unknown keys produce a warning; invalid values are an error that names the key.
 
+## Claude Code plugin
+
+The plugin teaches Claude Code when reading skeletons beats reading files, so it spends context on the code it
+works on rather than on finding its way around:
+
+```text
+/plugin marketplace add OLIX-boop/skeleton-cli
+/plugin install astpack@astpack
+```
+
+It bundles three things:
+
+- **The MCP server** (below), with instructions on when to use it.
+- **A skill** that Claude loads when it starts in a project cold (a new session, another computer, a fresh
+  clone), is asked for an overview, needs to locate a feature or learn a file's API, or is catching up on
+  pulled changes. It also says when not to: files about to be edited, small files, and anything that isn't code.
+- **A gentle Read hook.** The first time in a session that Claude reads a large source file (6 KB or more) in
+  full, the hook suggests `skeleton_file` instead. Reading the file again goes through, so Claude is never
+  blocked. Set `ASTPACK_READ_HINT=0` to turn the hook off.
+
+It costs about 230 tokens per session when unused. Its eval suite (`claude-plugin/evals`, run with
+`claude plugin eval`) checks both directions: Claude uses astpack on cold starts and when looking up a
+feature's API (where it cut the run's cost by about 40%), and doesn't on a one-line fix or an edit to a large file.
+
 ## MCP server
 
 `astpack mcp` runs a [Model Context Protocol](https://modelcontextprotocol.io) server over stdio, so agents can
@@ -518,7 +542,7 @@ pack code themselves:
 | --- | --- |
 | `pack_codebase` | The packed document for a directory: `focus`, `changed`, `query` / `queryLimit`, `related`, `mode` (`skeleton`/`full`/`outline`), `comments`, `include`, `ignore`, `order`, `format`, `maxTokens`, `deps`. |
 | `estimate_tokens` | Packed vs raw token counts and the largest files, without the document, to pick focus and budgets. |
-| `skeleton_file` | One file's skeleton: a cheap way to read its API. |
+| `skeleton_file` | Skeletons of one file (`path`) or up to 20 (`paths`): a cheap way to read their API. |
 
 All tools are read-only and limited to the roots given on the command line (default: the directory the server
 starts in).

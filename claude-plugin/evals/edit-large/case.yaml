@@ -1,0 +1,18 @@
+schema_version: "1.0"
+name: edit-large
+tags: [edit]
+runs: 2
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: >-
+    In src/billing/invoice-pdf.ts, make op3 return 30 instead of 3. Change nothing else.
+  max_turns: 15
+  allowed_tools: [Read, Glob, Grep, Edit, Skill, mcp__plugin_astpack_astpack__pack_codebase, mcp__plugin_astpack_astpack__estimate_tokens, mcp__plugin_astpack_astpack__skeleton_file]
+graders:
+  - type: regex
+    name: fixed
+    target:
+      source: file
+      path: src/billing/invoice-pdf.ts
+    pattern: "return 30;"

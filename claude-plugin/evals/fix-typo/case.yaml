@@ -1,0 +1,36 @@
+schema_version: "1.0"
+name: fix-typo
+tags: [should-not-fire]
+runs: 2
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: >-
+    In src/util/strings.ts the greeting says "recieve" instead of "receive". Fix the typo.
+  max_turns: 15
+  allowed_tools: [Read, Glob, Grep, Edit, Skill, mcp__plugin_astpack_astpack__pack_codebase, mcp__plugin_astpack_astpack__estimate_tokens, mcp__plugin_astpack_astpack__skeleton_file]
+graders:
+  - type: regex
+    name: fixed
+    target:
+      source: file
+      path: src/util/strings.ts
+    pattern: "will receive payment"
+  - type: tool_used
+    name: no-pack-codebase
+    tool: mcp__plugin_astpack_astpack__pack_codebase
+    min: 0
+    max: 0
+    arm: both
+  - type: tool_used
+    name: no-estimate-tokens
+    tool: mcp__plugin_astpack_astpack__estimate_tokens
+    min: 0
+    max: 0
+    arm: both
+  - type: tool_used
+    name: no-skeleton-file
+    tool: mcp__plugin_astpack_astpack__skeleton_file
+    min: 0
+    max: 0
+    arm: both

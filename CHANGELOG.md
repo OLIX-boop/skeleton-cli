@@ -5,6 +5,22 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0]
+
+### Added
+
+- Claude Code plugin (`/plugin marketplace add OLIX-boop/skeleton-cli`, then `/plugin install astpack@astpack`).
+  It bundles the MCP server, a skill describing when skeletons beat reading files, and a once-per-file Read hint
+  for large source files. An eval suite checks that Claude uses astpack on cold starts and API lookups, and not
+  for small edits.
+- MCP: server instructions say when to use astpack; `path` is optional and defaults to the project root;
+  `skeleton_file` takes `paths` for up to 20 files at once.
+
+### Fixed
+
+- MCP: `pack_codebase` and `skeleton_file` also return the document in `structuredContent`. Clients that show
+  the model only structured content, such as Claude Code, used to get the token counts without the code.
+
 ## [0.2.0]
 
 ### Added
@@ -58,6 +74,7 @@ First release.
 - A GitHub Action (`action.yml`) with token outputs and a job summary.
 - Programmatic API (`pack`, `render`, `skeletonize`, `fitToBudget`, `computeStats`, …).
 
-[Unreleased]: https://github.com/OLIX-boop/skeleton-cli/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/OLIX-boop/skeleton-cli/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/OLIX-boop/skeleton-cli/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/OLIX-boop/skeleton-cli/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/OLIX-boop/skeleton-cli/releases/tag/v0.1.0

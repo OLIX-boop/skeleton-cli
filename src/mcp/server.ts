@@ -162,10 +162,7 @@ export class AstpackMcpServer {
           protocolVersion,
           capabilities: { tools: { listChanged: false } },
           serverInfo: { name: 'astpack', title: 'astpack', version: VERSION },
-          instructions:
-            'astpack packs a codebase into one LLM-ready document. Use pack_codebase with `focus` for the files you are ' +
-            'working on (kept verbatim) while the rest is reduced to signatures and types. Use estimate_tokens first ' +
-            'on large repositories, and skeleton_file to read the API of a single file cheaply.',
+          instructions: SERVER_INSTRUCTIONS,
         };
       }
       case 'notifications/initialized':
@@ -225,7 +222,7 @@ export class AstpackMcpServer {
 
   private defineTools(): ToolDefinition[] {
     const packProperties = {
-      path: { type: 'string', description: 'Project directory (absolute, or relative to the server root).' },
+      path: { type: 'string', description: 'Project directory (absolute, or relative to the server root). Default: the server root.' },
       focus: {
         type: 'array',
         items: { type: 'string' },
@@ -267,7 +264,7 @@ export class AstpackMcpServer {
       const order = oneOf<FileOrder>(args, 'order', FILE_ORDERS) ?? 'path';
       const depth = num(args, 'related');
       const related = depth === undefined ? undefined : Math.floor(depth);
-      const root = await this.resolvePath(str(args, 'path', true)!);
+      const root = await this.resolvePath(str(args, 'path') ?? '.');
       const info = await stat(root).catch(() => undefined);
       if (!info?.isDirectory()) throw new ToolError(`${root} is not a directory`);
       const focus = focusArgs.map((f) => (/[*?[\]{}]/.test(f) ? f : resolve(root, f)));
@@ -281,9 +278,11 @@ export class AstpackMcpServer {
         name: 'pack_codebase',
         title: 'Pack codebase',
         description:
-          'Pack a project into a single LLM-ready document: a directory tree plus every file, with function bodies ' +
-          'replaced by placeholders (signatures, types, classes and comments kept). Focused files stay verbatim. ' +
-          'Respects .gitignore and skips dependencies, lockfiles, binaries and secrets.',
+          'The whole project in one document: directory tree plus every file, with function bodies replaced by ' +
+          'placeholders (signatures, types, classes and comments kept), at a fraction of the tokens of reading the files. ' +
+          'Use it to get oriented in a project before opening files one by one: mode "outline" is the most compact map. ' +
+          'Files given in `focus`, matched by `query` or changed since `changed` stay verbatim. Respects .gitignore and ' +
+          'skips dependencies, lockfiles, binaries and secrets.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -291,7 +290,6 @@ export class AstpackMcpServer {
             format: { type: 'string', enum: ['markdown', 'xml', 'json'], description: 'Document format (default markdown).' },
             deps: { type: 'boolean', description: 'Include the internal import graph (which file imports which).' },
           },
-          required: ['path'],
           additionalProperties: false,
         },
         run: async (args) => {
@@ -313,11 +311,13 @@ export class AstpackMcpServer {
           const stats = computeStats(result, document, { models: [...DEFAULT_MODELS] });
           return {
             content: [{ type: 'text', text: document }],
+            // Some clients show the model only structuredContent: the document must be in it too.
             structuredContent: {
               files: stats.filesIncluded,
               tokens: stats.tokens.cl100k_base.output,
               rawTokens: stats.tokens.cl100k_base.baseline,
               savedPercent: Math.round(stats.savedRatio * 100),
+              document,
             },
           };
         },
@@ -326,12 +326,12 @@ export class AstpackMcpServer {
         name: 'estimate_tokens',
         title: 'Estimate tokens',
         description:
-          'Report how many tokens pack_codebase would produce for a project (and how many the raw source would take), ' +
-          'plus the largest files, without returning the document. Use it to choose focus/include/maxTokens.',
+          'How many tokens pack_codebase would return for a project, how many the raw source would take, and the ' +
+          'largest files, without the document itself. Cheap: use it on unfamiliar or large projects to choose mode, ' +
+          'include and maxTokens.',
         inputSchema: {
           type: 'object',
           properties: { ...packProperties, top: { type: 'number', description: 'How many of the largest files to list (default 10).' } },
-          required: ['path'],
           additionalProperties: false,
         },
         run: async (args) => {
@@ -371,41 +371,60 @@ export class AstpackMcpServer {
               rawTokens: cl.baseline,
               savedPercent: Math.round(stats.savedRatio * 100),
               largest: stats.files.slice(0, top).map((f) => ({ path: f.path, tokens: f.tokens, rawTokens: f.originalTokens })),
+              summary: lines.join('\n'),
             },
           };
         },
       },
       {
         name: 'skeleton_file',
-        title: 'Skeleton of a file',
+        title: 'Skeleton of files',
         description:
-          "Return one source file with function bodies stripped: its imports, types, signatures and docs. A cheap way to read a file's API.",
+          'One or more source files with function bodies stripped: imports, types, signatures and docs. Use it instead of ' +
+          'reading a file when you need what it offers (its API, how to call it) rather than how it works inside.',
         inputSchema: {
           type: 'object',
           properties: {
             path: { type: 'string', description: 'File path (absolute, or relative to the server root).' },
+            paths: { type: 'array', items: { type: 'string' }, description: `Several file paths at once (at most ${MAX_SKELETON_FILES}).` },
             comments: commentsSchema,
           },
-          required: ['path'],
           additionalProperties: false,
         },
         run: async (args) => {
-          const file = await this.resolvePath(str(args, 'path', true)!);
-          const info = await stat(file).catch(() => undefined);
-          if (!info?.isFile()) throw new ToolError(`${file} is not a file`);
-          const content = await readText(file);
-          const out = await transformFile(file, content, {
-            mode: 'skeleton',
-            comments: oneOf<CommentMode>(args, 'comments', ['all', 'docs', 'none']),
-            fallback: { maxLines: 400, maxChars: 40_000 },
-          });
+          const one = str(args, 'path');
+          const many = strList(args, 'paths');
+          const inputs = [...(one ? [one] : []), ...many];
+          if (!inputs.length) throw new ToolError('Pass `path` or `paths`');
+          if (inputs.length > MAX_SKELETON_FILES) throw new ToolError(`At most ${MAX_SKELETON_FILES} files per call`);
+          const comments = oneOf<CommentMode>(args, 'comments', ['all', 'docs', 'none']);
           const counter = new TokenCounter();
           try {
-            const tokens = counter.count(out.content);
-            const rawTokens = counter.count(content);
+            const files = [];
+            for (const input of inputs) {
+              const file = await this.resolvePath(input);
+              const info = await stat(file).catch(() => undefined);
+              if (!info?.isFile()) throw new ToolError(`${input} is not a file`);
+              const content = await readText(file);
+              const out = await transformFile(file, content, { mode: 'skeleton', comments, fallback: { maxLines: 400, maxChars: 40_000 } });
+              files.push({ input, out, tokens: counter.count(out.content), rawTokens: counter.count(content) });
+            }
+            const text =
+              files.length === 1
+                ? files[0]!.out.content
+                : files.map((f) => `### ${f.input}\n\n${f.out.content.replace(/\n?$/, '\n')}`).join('\n');
+            const meta = files.map((f) => ({
+              path: f.input,
+              language: f.out.language?.id ?? null,
+              strategy: f.out.strategy,
+              tokens: f.tokens,
+              rawTokens: f.rawTokens,
+              // Some clients show the model only structuredContent: the skeleton must be in it too.
+              skeleton: f.out.content,
+            }));
             return {
-              content: [{ type: 'text', text: out.content }],
-              structuredContent: { language: out.language?.id ?? null, strategy: out.strategy, tokens, rawTokens },
+              content: [{ type: 'text', text }],
+              structuredContent: files.length === 1 ? meta[0] : { files: meta },
             };
           } finally {
             counter.free();
@@ -415,6 +434,25 @@ export class AstpackMcpServer {
     ];
   }
 }
+
+/**
+ * Shown to the model in every session that has the server: when astpack beats reading files,
+ * and when it doesn't. Kept short, since it costs context on every turn.
+ */
+export const SERVER_INSTRUCTIONS = [
+  'astpack reads code as skeletons: signatures, types, classes, imports and docs, with function bodies replaced',
+  'by placeholders, typically 50-80% fewer tokens than the raw files.',
+  'Use it when you need to understand code rather than change it:',
+  '- Starting work in a project you have not seen in this session (a new session, another machine, a fresh clone):',
+  '  call pack_codebase with mode "outline" (or the default skeleton for small projects) before reading files one by one.',
+  '- Finding where something is implemented: pack_codebase with `query` describing it.',
+  '- Learning what a file or module offers (its API, not its internals): skeleton_file, which takes several paths at once.',
+  '- Catching up on changes made elsewhere: pack_codebase with `changed` (e.g. "ORIG_HEAD" after a pull) and the rest as skeletons.',
+  'Read files normally when you are about to edit them, need exact implementation details, the file is small, or it is',
+  'not code. estimate_tokens tells you what a pack would cost before you request it.',
+].join('\n');
+
+const MAX_SKELETON_FILES = 20;
 
 /** Serve MCP over stdio (newline-delimited JSON-RPC). Resolves when stdin closes. */
 export async function serveStdio(server: AstpackMcpServer, input: NodeJS.ReadableStream = process.stdin, output: NodeJS.WritableStream = process.stdout): Promise<void> {
