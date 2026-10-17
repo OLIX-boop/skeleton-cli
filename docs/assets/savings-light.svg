@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="432" viewBox="0 0 760 432" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-labelledby="title desc">
+  <title id="title">Tokens needed to send a whole repository to an LLM</title>
+  <desc id="desc">For six open-source repositories, the share of tokens that remains after astpack's skeleton mode, compared with the raw source.</desc>
+  <text x="0" y="22" font-size="18" font-weight="700" fill="#0A0A0A">Tokens to send a whole repository</text>
+  <text x="0" y="44" font-size="13" fill="#6B6B6B">Whole track = raw source.  Filled part = what astpack sends (skeleton mode, default settings).</text>
+  <line x1="0" y1="60" x2="760" y2="60" stroke="#D4D4D4" stroke-width="1"/>
+  <g>
+    <title>colinhacks/zod: 2,536,174 tokens raw, 516,274 with astpack (−80%)</title>
+    <text x="0" y="88" font-size="14" font-weight="600" fill="#0A0A0A">colinhacks/zod</text>
+    <text x="0" y="106" font-size="12" fill="#6B6B6B">TypeScript</text>
+    <rect x="190" y="78" width="430" height="16" rx="4" fill="#E6E6E6"/>
+    <rect x="190" y="78" width="88" height="16" rx="4" fill="#0A0A0A"/>
+    <text x="190" y="112" font-size="12" fill="#6B6B6B" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">2.54M → 516k tokens</text>
+    <text x="760" y="92" font-size="20" font-weight="700" text-anchor="end" fill="#0A0A0A">−80%</text>
+  </g>
+  <g>
+    <title>BurntSushi/ripgrep: 919,234 tokens raw, 406,790 with astpack (−56%)</title>
+    <text x="0" y="142" font-size="14" font-weight="600" fill="#0A0A0A">BurntSushi/ripgrep</text>
+    <text x="0" y="160" font-size="12" fill="#6B6B6B">Rust</text>
+    <rect x="190" y="132" width="430" height="16" rx="4" fill="#E6E6E6"/>
+    <rect x="190" y="132" width="190" height="16" rx="4" fill="#0A0A0A"/>
+    <text x="190" y="166" font-size="12" fill="#6B6B6B" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">919k → 407k tokens</text>
+    <text x="760" y="146" font-size="20" font-weight="700" text-anchor="end" fill="#0A0A0A">−56%</text>
+  </g>
+  <g>
+    <title>psf/requests: 720,633 tokens raw, 86,133 with astpack (−88%)</title>
+    <text x="0" y="196" font-size="14" font-weight="600" fill="#0A0A0A">psf/requests</text>
+    <text x="0" y="214" font-size="12" fill="#6B6B6B">Python</text>
+    <rect x="190" y="186" width="430" height="16" rx="4" fill="#E6E6E6"/>
+    <rect x="190" y="186" width="51" height="16" rx="4" fill="#0A0A0A"/>
+    <text x="190" y="220" font-size="12" fill="#6B6B6B" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">721k → 86k tokens</text>
+    <text x="760" y="200" font-size="20" font-weight="700" text-anchor="end" fill="#0A0A0A">−88%</text>
+  </g>
+  <g>
+    <title>google/gson: 523,215 tokens raw, 267,312 with astpack (−49%)</title>
+    <text x="0" y="250" font-size="14" font-weight="600" fill="#0A0A0A">google/gson</text>
+    <text x="0" y="268" font-size="12" fill="#6B6B6B">Java</text>
+    <rect x="190" y="240" width="430" height="16" rx="4" fill="#E6E6E6"/>
+    <rect x="190" y="240" width="220" height="16" rx="4" fill="#0A0A0A"/>
+    <text x="190" y="274" font-size="12" fill="#6B6B6B" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">523k → 267k tokens</text>
+    <text x="760" y="254" font-size="20" font-weight="700" text-anchor="end" fill="#0A0A0A">−49%</text>
+  </g>
+  <g>
+    <title>expressjs/express: 194,356 tokens raw, 65,699 with astpack (−66%)</title>
+    <text x="0" y="304" font-size="14" font-weight="600" fill="#0A0A0A">expressjs/express</text>
+    <text x="0" y="322" font-size="12" fill="#6B6B6B">JavaScript</text>
+    <rect x="190" y="294" width="430" height="16" rx="4" fill="#E6E6E6"/>
+    <rect x="190" y="294" width="145" height="16" rx="4" fill="#0A0A0A"/>
+    <text x="190" y="328" font-size="12" fill="#6B6B6B" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">194k → 66k tokens</text>
+    <text x="760" y="308" font-size="20" font-weight="700" text-anchor="end" fill="#0A0A0A">−66%</text>
+  </g>
+  <g>
+    <title>spf13/cobra: 168,269 tokens raw, 48,168 with astpack (−71%)</title>
+    <text x="0" y="358" font-size="14" font-weight="600" fill="#0A0A0A">spf13/cobra</text>
+    <text x="0" y="376" font-size="12" fill="#6B6B6B">Go</text>
+    <rect x="190" y="348" width="430" height="16" rx="4" fill="#E6E6E6"/>
+    <rect x="190" y="348" width="123" height="16" rx="4" fill="#0A0A0A"/>
+    <text x="190" y="382" font-size="12" fill="#6B6B6B" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">168k → 48k tokens</text>
+    <text x="760" y="362" font-size="20" font-weight="700" text-anchor="end" fill="#0A0A0A">−71%</text>
+  </g>
+  <text x="0" y="424" font-size="11" fill="#6B6B6B">cl100k_base tokens of the complete Markdown document, shallow clones. Reproduce: node scripts/benchmark.mjs</text>
+</svg>

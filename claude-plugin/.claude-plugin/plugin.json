@@ -1,0 +1,14 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "astpack",
+  "version": "0.3.0",
+  "description": "Read code as skeletons (signatures, types, docs; no function bodies) to get oriented in a project for a fraction of the tokens.",
+  "author": {
+    "name": "OLIX-boop"
+  },
+  "homepage": "https://github.com/OLIX-boop/skeleton-cli",
+  "repository": "https://github.com/OLIX-boop/skeleton-cli",
+  "license": "MIT",
+  "keywords": ["tokens", "context", "codebase", "skeleton", "tree-sitter", "mcp"],
+  "skills": ["./skills/"]
+}

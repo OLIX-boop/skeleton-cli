@@ -41,10 +41,11 @@ describe('MCP server', () => {
 
   it('lists read-only tools with JSON schemas', async () => {
     const { server } = await setup();
-    const { tools } = (await call(server, 'tools/list')).result as { tools: { name: string; inputSchema: { required: string[] }; annotations: object }[] };
+    const { tools } = (await call(server, 'tools/list')).result as { tools: { name: string; inputSchema: { required?: string[] }; annotations: object }[] };
     expect(tools.map((t) => t.name)).toEqual(['pack_codebase', 'estimate_tokens', 'skeleton_file']);
     for (const t of tools) {
-      expect(t.inputSchema.required).toEqual(['path']);
+      // Every argument is optional: the project defaults to the server root.
+      expect(t.inputSchema.required).toBeUndefined();
       expect(t.annotations).toMatchObject({ readOnlyHint: true });
     }
   });
@@ -58,6 +59,7 @@ describe('MCP server', () => {
     expect(text).toContain('return x * 2;');
     expect(text).toContain('def b():\n    """Docs."""\n    ...');
     expect(res.structuredContent).toMatchObject({ files: 3 });
+    expect(res.structuredContent!.document).toBe(text);
   });
 
   it('focuses files by query and orders them', async () => {
@@ -89,6 +91,27 @@ describe('MCP server', () => {
     const res = await tool(server, 'skeleton_file', { path: join(root, 'src/a.ts') });
     expect(res.content[0]!.text).toBe('export function a(x: number): number { /* ... */ }\n');
     expect(res.structuredContent).toMatchObject({ language: 'typescript', strategy: 'skeleton' });
+    // Clients that only forward structuredContent still get the skeleton.
+    expect(res.structuredContent!.skeleton).toBe(res.content[0]!.text);
+  });
+
+  it('returns several skeletons at once, and packs the server root by default', async () => {
+    const { root, server } = await setup();
+    const res = await tool(server, 'skeleton_file', { paths: ['src/a.ts', 'src/b.py'].map((p) => join(root, p)) });
+    const text = res.content[0]!.text;
+    expect(text).toContain(`### ${join(root, 'src/a.ts')}\n\nexport function a(x: number): number { /* ... */ }`);
+    expect(text).toContain('def b():');
+    expect((res.structuredContent!.files as unknown[]).length).toBe(2);
+    const packed = await tool(new AstpackMcpServer({ roots: [root], cwd: root }), 'pack_codebase', { mode: 'outline' });
+    expect(packed.isError).toBeUndefined();
+    expect(packed.content[0]!.text).toContain('export function a(x: number): number');
+  });
+
+  it('tells the model when astpack is worth using', async () => {
+    const { server } = await setup();
+    const { instructions } = (await call(server, 'initialize', { protocolVersion: PROTOCOL_VERSIONS[0] })).result as { instructions: string };
+    expect(instructions).toContain('outline');
+    expect(instructions).toMatch(/Read files normally when you are about to edit them/);
   });
 
   it('refuses paths outside the allowed roots', async () => {
@@ -128,7 +151,7 @@ describe('MCP server', () => {
     const { server } = await setup();
     expect((await call(server, 'nope')).error?.code).toBe(ErrorCode.MethodNotFound);
     expect((await call(server, 'tools/call', { name: 'missing' })).error?.code).toBe(ErrorCode.InvalidParams);
-    expect((await call(server, 'tools/call', { name: 'pack_codebase', arguments: {} })).error?.message).toContain('"path" is required');
+    expect((await call(server, 'tools/call', { name: 'skeleton_file', arguments: {} })).result).toMatchObject({ isError: true });
     expect((await call(server, 'tools/call', { name: 'pack_codebase', arguments: { path: '.', mode: 'x' } })).error?.code).toBe(
       ErrorCode.InvalidParams,
     );

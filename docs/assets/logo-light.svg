@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="96" viewBox="0 0 360 96" role="img" aria-labelledby="title">
+  <title id="title">astpack</title>
+  <g fill="none" stroke="#0A0A0A" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M30 14 C18 14 18 22 18 30 L18 40 C18 46 14 48 8 48 C14 48 18 50 18 56 L18 66 C18 74 18 82 30 82"/>
+    <path d="M66 14 C78 14 78 22 78 30 L78 40 C78 46 82 48 88 48 C82 48 78 50 78 56 L78 66 C78 74 78 82 66 82"/>
+  </g>
+  <g fill="#0A0A0A">
+    <rect x="34" y="30" width="28" height="6" rx="3"/>
+    <circle cx="38" cy="48" r="3.5"/><circle cx="48" cy="48" r="3.5"/><circle cx="58" cy="48" r="3.5"/>
+    <rect x="34" y="60" width="18" height="6" rx="3"/>
+  </g>
+  <text x="112" y="62" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="46" font-weight="700" letter-spacing="-1.5" fill="#0A0A0A">astpack</text>
+</svg>

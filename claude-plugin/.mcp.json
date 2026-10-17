@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "astpack": {
+      "command": "npx",
+      "args": ["-y", "astpack@latest", "mcp"]
+    }
+  }
+}
