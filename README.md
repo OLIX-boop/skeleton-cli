@@ -1,10 +1,78 @@
-# astpack
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
+    <img src="docs/assets/logo-light.svg" alt="astpack" width="300">
+  </picture>
+</p>
 
-[![CI](https://github.com/OLIX-boop/skeleton-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/OLIX-boop/skeleton-cli/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/astpack.svg)](https://www.npmjs.com/package/astpack)
-[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+<p align="center"><b>Pack a whole codebase into one LLM-ready prompt — at a fraction of the tokens.</b></p>
 
-**Pack a whole codebase into one LLM-ready prompt — at a fraction of the tokens.**
+<p align="center">
+  <a href="https://github.com/OLIX-boop/skeleton-cli/actions/workflows/ci.yml"><img src="https://github.com/OLIX-boop/skeleton-cli/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://www.npmjs.com/package/astpack"><img src="https://img.shields.io/npm/v/astpack.svg" alt="npm"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="license: MIT"></a>
+</p>
+
+astpack reads your code with Tree-sitter and keeps what an LLM needs to understand it (imports, types,
+signatures, classes, docs) while dropping function bodies. The files you are working on stay complete.
+
+## Quick start
+
+### 1. Pack a project: no install, no config
+
+```sh
+cd my-project
+npx astpack             # writes astpack-output.md
+npx astpack -c          # same, copied to the clipboard: paste it into any chat
+npx astpack --dry-run   # only show how many tokens it would take
+```
+
+Keep the files you are changing in full with `--focus src/auth`, or find a feature with
+`--query "invoice pdf export"`. Requires Node.js 22.12+.
+
+### 2. Use it in Claude Code
+
+```text
+/plugin marketplace add OLIX-boop/skeleton-cli
+/plugin install astpack@astpack
+```
+
+Nothing else to learn: Claude uses skeletons on its own when they pay off (opening a project cold, getting an
+overview, learning a file's API, finding a feature) and reads files normally when it edits them.
+[More on the plugin](#claude-code-plugin).
+
+### 3. Pick up work from another computer
+
+```sh
+git checkout main
+git pull
+npx astpack --changed ORIG_HEAD --diff -c
+```
+
+The files the pull changed come in full with the diff, the rest of the project as a skeleton: one paste and
+the model is up to date. With the plugin, just ask Claude *"what changed since my last pull?"*.
+
+## How much you save
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/savings-dark.svg">
+  <img src="docs/assets/savings-light.svg" alt="Tokens to send a whole repository: zod 2.54M to 516k (−80%), ripgrep 919k to 407k (−56%), requests 721k to 86k (−88%), gson 523k to 267k (−49%), express 194k to 66k (−66%), cobra 168k to 48k (−71%)" width="100%">
+</picture>
+
+| Scenario | Without astpack | With astpack | Saved |
+| --- | ---: | ---: | ---: |
+| Six popular repositories ([benchmarks](#benchmarks)) | 5.06M tokens | 1.39M tokens | **−73%** |
+| Same, project map only (`--outline`) | 5.06M tokens | 782k tokens | **−85%** |
+| VS Code sources (11,453 files) | 35.5M tokens | 12.3M tokens | **−65%** |
+| *Python Data Science Handbook* notebooks | 9.3M tokens | 186k tokens | **−98%** |
+| Claude Code, looking up a feature's API ([plugin evals](#claude-code-plugin)) | reads whole files | reads skeletons | **≈ −40% cost** |
+
+Fewer tokens means cheaper requests, more room left in the context window and, for whole projects, fitting at
+all: zod raw is 2.5M tokens, more than most context windows hold; its skeleton is a fifth of that.
+
+---
+
+## Why astpack
 
 Repository packers like Repomix or Gitingest dump every line of source into a single file. That overflows
 context windows and spends most of the budget on function bodies the model doesn't need to understand the
@@ -18,13 +86,14 @@ npx astpack                      # pack the current directory → astpack-output
 npx astpack --focus src/auth -c  # src/auth in full, everything else as a skeleton, copied to the clipboard
 ```
 
-On real projects that is **49–89% fewer tokens** than packing raw source, and up to 91% with `--outline`
+On real projects that is **49–88% fewer tokens** than packing raw source, and up to 93% with `--outline`
 ([benchmarks](#benchmarks)).
-
----
 
 ## Contents
 
+- [Quick start](#quick-start)
+- [How much you save](#how-much-you-save)
+- [Why astpack](#why-astpack)
 - [Before / after](#before--after)
 - [Features](#features)
 - [Installation](#installation)
@@ -40,6 +109,7 @@ On real projects that is **49–89% fewer tokens** than packing raw source, and 
   - [Secret redaction](#secret-redaction)
 - [CLI reference](#cli-reference)
 - [Configuration file](#configuration-file)
+- [Claude Code plugin](#claude-code-plugin)
 - [MCP server](#mcp-server)
 - [GitHub Action](#github-action)
 - [Supported languages](#supported-languages)
@@ -631,12 +701,12 @@ Default settings, shallow clones, cl100k_base tokens for the complete Markdown d
 
 | Repository | Language | Files | Raw (`--full`) | Skeleton | Skeleton + `--comments none` | `--outline` | Time |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| [expressjs/express](https://github.com/expressjs/express) | JavaScript | 213 | 196,492 | 65,301 (−67%) | 55,614 (−72%) | 22,979 (−88%) | 0.4s |
-| [colinhacks/zod](https://github.com/colinhacks/zod) | TypeScript | 685 | 2,532,748 | 563,412 (−78%) | 500,931 (−80%) | 378,091 (−85%) | 2.3s |
-| [psf/requests](https://github.com/psf/requests) | Python | 114 | 720,633 | 94,301 (−87%) | 75,791 (−89%) | 61,514 (−91%) | 0.3s |
+| [expressjs/express](https://github.com/expressjs/express) | JavaScript | 213 | 194,356 | 65,699 (−66%) | 56,003 (−71%) | 23,370 (−88%) | 0.3s |
+| [colinhacks/zod](https://github.com/colinhacks/zod) | TypeScript | 685 | 2,536,174 | 516,274 (−80%) | 453,663 (−82%) | 330,828 (−87%) | 1.4s |
+| [psf/requests](https://github.com/psf/requests) | Python | 114 | 720,633 | 86,133 (−88%) | 67,623 (−91%) | 53,346 (−93%) | 0.2s |
 | [spf13/cobra](https://github.com/spf13/cobra) | Go | 63 | 168,269 | 48,168 (−71%) | 34,064 (−80%) | 28,297 (−83%) | 0.2s |
-| [BurntSushi/ripgrep](https://github.com/BurntSushi/ripgrep) | Rust | 227 | 919,234 | 406,790 (−56%) | 302,923 (−67%) | 241,636 (−74%) | 1.0s |
-| [google/gson](https://github.com/google/gson) | Java | 311 | 523,037 | 267,197 (−49%) | 157,264 (−70%) | 104,191 (−80%) | 0.9s |
+| [BurntSushi/ripgrep](https://github.com/BurntSushi/ripgrep) | Rust | 227 | 919,234 | 406,790 (−56%) | 302,923 (−67%) | 241,636 (−74%) | 0.6s |
+| [google/gson](https://github.com/google/gson) | Java | 311 | 523,215 | 267,312 (−49%) | 157,365 (−70%) | 104,240 (−80%) | 0.5s |
 
 "Time" is packing only; token counting for the summary adds roughly a second per million characters.
 
