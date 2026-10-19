@@ -42,12 +42,14 @@ describe('MCP server', () => {
   it('lists read-only tools with JSON schemas', async () => {
     const { server } = await setup();
     const { tools } = (await call(server, 'tools/list')).result as { tools: { name: string; inputSchema: { required?: string[] }; annotations: object }[] };
-    expect(tools.map((t) => t.name)).toEqual(['pack_codebase', 'estimate_tokens', 'skeleton_file']);
-    for (const t of tools) {
+    expect(tools.map((t) => t.name)).toEqual(['pack_codebase', 'estimate_tokens', 'skeleton_file', 'read_document', 'save_transcription']);
+    for (const t of tools.slice(0, 3)) {
       // Every argument is optional: the project defaults to the server root.
       expect(t.inputSchema.required).toBeUndefined();
       expect(t.annotations).toMatchObject({ readOnlyHint: true });
     }
+    // Only saving transcriptions writes anything.
+    expect(tools.find((t) => t.name === 'save_transcription')!.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false });
   });
 
   it('packs a codebase with focus', async () => {
@@ -111,7 +113,8 @@ describe('MCP server', () => {
     const { server } = await setup();
     const { instructions } = (await call(server, 'initialize', { protocolVersion: PROTOCOL_VERSIONS[0] })).result as { instructions: string };
     expect(instructions).toContain('outline');
-    expect(instructions).toMatch(/Read files normally when you are about to edit them/);
+    expect(instructions).toMatch(/Read code files normally when you are about to edit them/);
+    expect(instructions).toContain("read_document instead of Read");
   });
 
   it('refuses paths outside the allowed roots', async () => {
@@ -176,6 +179,6 @@ describe('MCP server', () => {
     expect(messages).toHaveLength(3);
     expect(messages.find((m) => m.id === 1).result.protocolVersion).toBe('2025-06-18');
     expect(messages.find((m) => m.id === null).error.code).toBe(ErrorCode.ParseError);
-    expect(messages.find((m) => m.id === 2).result.tools).toHaveLength(3);
+    expect(messages.find((m) => m.id === 2).result.tools).toHaveLength(5);
   });
 });

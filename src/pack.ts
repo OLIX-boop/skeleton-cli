@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import type { CommentMode } from './languages/types.js';
+import { isDocument, loadDocument } from './documents/index.js';
 import { transformFile, type FallbackLimits, type FileMode, type Strategy } from './engine/transform.js';
 import type { RedactionHit } from './security/secrets.js';
 import { embeddedForPath, languageForPath } from './languages/index.js';
@@ -134,7 +135,18 @@ export async function pack(root: string, options: PackOptions = {}): Promise<Pac
   const focus = new FocusMatcher(options.focus ?? [], walked.root, options.cwd);
 
   const concurrency = options.concurrency ?? 32;
-  const originals = await mapLimit(walked.files, concurrency, (entry) => readText(entry.absPath));
+  // Documents are converted to Markdown here (once per content: the result is cached); one that
+  // cannot be read (corrupt, password-protected) is skipped rather than failing the pack.
+  const read = await mapLimit(walked.files, concurrency, async (entry) => {
+    if (!isDocument(entry.path)) return readText(entry.absPath);
+    return loadDocument(entry.absPath, { root: walked.root, direct: false }).then(
+      (doc) => doc.markdown,
+      () => undefined,
+    );
+  });
+  walked.skipped.push(...walked.files.filter((_, i) => read[i] === undefined).map((e) => ({ path: e.path, reason: 'unreadable' as const, size: e.size })));
+  walked.files = walked.files.filter((_, i) => read[i] !== undefined);
+  const originals = read.filter((text): text is string => text !== undefined);
   const targets = new Set(focus.isEmpty ? [] : walked.files.filter((e) => focus.matches(e.path)).map((e) => e.path));
   let queryHits: SearchHit[] | undefined;
   if (options.query?.trim()) {

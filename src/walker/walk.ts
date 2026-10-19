@@ -2,6 +2,7 @@ import { lstat, readdir, readFile, realpath, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import ignore from 'ignore';
 import { isBinaryFile } from './binary.js';
+import { isDocument, PACKED_DOCUMENT_EXTENSIONS } from '../documents/index.js';
 import { DEFAULT_MAX_FILE_SIZE, defaultIgnorePatterns } from './defaults.js';
 import { ancestorDirsWithinRepo, IgnoreRules, relPosix } from './rules.js';
 
@@ -20,6 +21,8 @@ export interface WalkOptions {
   maxFileSize?: number;
   /** Follow symbolic links (cycle-safe). Default false. */
   followSymlinks?: boolean;
+  /** Include documents (PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, RTF, e-mail), converted to text. Default true. */
+  documents?: boolean;
 }
 
 export interface FileEntry {
@@ -93,15 +96,18 @@ export async function walk(root: string, options: WalkOptions = {}): Promise<Wal
     rules = await rules.withFile(join(absRoot, '.git', 'info'), '', 'exclude');
   }
   if (opts.ignore?.length) rules = rules.with('', opts.ignore);
+  if (options.documents === false) rules = rules.with('', PACKED_DOCUMENT_EXTENSIONS.map((e) => `*.${e}`));
 
   async function checkFile(f: Candidate): Promise<FileEntry | SkippedEntry> {
     if (include && !include.ignores(f.path)) return { path: f.path, reason: 'not-included' };
     try {
       const { size } = await (opts.followSymlinks ? stat(f.abs) : lstat(f.abs));
-      // Notebooks shrink a lot once their outputs are dropped: allow 8x the limit.
-      const limit = f.path.toLowerCase().endsWith('.ipynb') ? maxSize * 8 : maxSize;
+      // Notebooks shrink a lot once their outputs are dropped, and documents once converted to
+      // text (a PDF's fonts and images): allow 8x and 32x the limit.
+      const document = isDocument(f.path);
+      const limit = document ? maxSize * 32 : f.path.toLowerCase().endsWith('.ipynb') ? maxSize * 8 : maxSize;
       if (size > limit) return { path: f.path, reason: 'too-large', size };
-      if (size > 0 && (await isBinaryFile(f.abs))) return { path: f.path, reason: 'binary', size };
+      if (size > 0 && !document && (await isBinaryFile(f.abs))) return { path: f.path, reason: 'binary', size };
       return { path: f.path, absPath: f.abs, size };
     } catch {
       return { path: f.path, reason: 'unreadable' };

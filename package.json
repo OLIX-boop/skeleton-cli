@@ -1,7 +1,7 @@
 {
   "name": "astpack",
-  "version": "0.3.0",
-  "description": "Compress a codebase into an LLM-ready prompt by stripping function bodies with Tree-sitter (Skeleton Mode).",
+  "version": "0.4.0",
+  "description": "Compress a codebase (and its PDFs, Word, PowerPoint and Excel files) into an LLM-ready prompt: function bodies stripped with Tree-sitter, documents converted to Markdown.",
   "keywords": [
     "llm",
     "prompt",
@@ -15,7 +15,13 @@
     "mcp",
     "claude",
     "gpt",
-    "cli"
+    "cli",
+    "pdf",
+    "docx",
+    "xlsx",
+    "pptx",
+    "documents",
+    "markdown"
   ],
   "homepage": "https://github.com/OLIX-boop/skeleton-cli#readme",
   "bugs": {
@@ -62,7 +68,9 @@
     "coverage": "vitest run --coverage --coverage.include=src/**"
   },
   "dependencies": {
+    "@embedpdf/pdfium": "^2.15.1",
     "commander": "^15.0.0",
+    "fflate": "^0.8.3",
     "gpt-tokenizer": "^4.0.0",
     "ignore": "^7.0.10",
     "web-tree-sitter": "~0.25.10"

@@ -23,6 +23,7 @@ export const DEFAULT_IGNORED_DIRS = [
   '.turbo',
   '.parcel-cache',
   '.cache',
+  '.astpack',
   '.gradle',
   '.idea',
   '.vscode-test',
@@ -67,8 +68,8 @@ export const DEFAULT_BINARY_EXTENSIONS = [
   'mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'mp4', 'm4v', 'mov', 'avi', 'mkv', 'webm',
   // archives
   'zip', 'tar', 'gz', 'tgz', 'bz2', 'xz', '7z', 'rar', 'zst', 'jar', 'war', 'whl', 'egg',
-  // documents
-  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt',
+  // legacy binary Office documents (the XML-based ones are converted, see documents/)
+  'doc', 'xls', 'ppt', 'msg',
   // compiled / native
   'exe', 'dll', 'so', 'dylib', 'o', 'a', 'lib', 'obj', 'class', 'pyc', 'pyo', 'pyd', 'wasm', 'node', 'bin',
   // data

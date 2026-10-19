@@ -1,3 +1,4 @@
+import { isDocument } from '../documents/index.js';
 import type { PackedFile, PackResult } from '../pack.js';
 
 /** Short per-file annotation used in trees and headings. */
@@ -22,12 +23,14 @@ export function treeNotes(result: PackResult): Map<string, string> {
 
 /** One-paragraph explanation of the packaging, so the reading model knows what it is looking at. */
 export function legend(result: PackResult): string {
-  const hasSkeleton = result.files.some((f) => f.strategy === 'skeleton');
+  const hasSkeleton = result.files.some((f) => f.strategy === 'skeleton' && !isDocument(f.path));
+  const hasCondensed = result.files.some((f) => f.strategy === 'skeleton' && isDocument(f.path));
   const hasFocus = result.files.some((f) => f.focused);
   const hasTruncated = result.files.some((f) => f.strategy === 'truncated');
   const hasOmitted = result.files.some((f) => f.strategy === 'omitted');
   const hasOutline = result.files.some((f) => f.strategy === 'outline');
   const hasStrippedComments = result.files.some((f) => f.strippedComments > 0);
+  const hasDocuments = result.files.some((f) => isDocument(f.path) && f.strategy !== 'omitted');
   const parts: string[] = [];
   if (hasOutline) {
     parts.push('Files marked [outline] list only their declarations and signatures, one per line, with members indented under their class or module.');
@@ -36,8 +39,13 @@ export function legend(result: PackResult): string {
     parts.push(
       `Source files are shown in skeleton form: function and method bodies were replaced with \`...\` placeholders, while imports, types, signatures and class members are intact${hasStrippedComments ? '' : ', as are comments'}.`,
     );
-  } else if (!hasOutline) {
+  } else if (!hasOutline && !hasCondensed) {
     parts.push('All files are included as full source.');
+  }
+  if (hasDocuments) {
+    parts.push(
+      'Documents (PDF, Office, e-book, e-mail) were converted to Markdown; condensed ones keep their headings and the first sentences of each section, with `[… N more paragraphs]` marking cuts, and `[page N: …]` notes mark pages whose handwriting or images are not in the text.',
+    );
   }
   if (hasStrippedComments) parts.push('Some comments were removed to save space.');
   if (hasFocus) parts.push('Files marked [focus] are included as complete, unmodified source.');

@@ -153,6 +153,10 @@
       "type": "boolean",
       "description": "Follow symbolic links."
     },
+    "documents": {
+      "type": "boolean",
+      "description": "Include documents (PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, RTF, e-mail) converted to text."
+    },
     "redact": {
       "type": "boolean",
       "description": "Mask likely secrets."

@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "astpack",
-  "description": "astpack: read codebases as skeletons to save context tokens in Claude Code.",
+  "description": "astpack: read codebases as skeletons and documents as text to save context tokens in Claude Code.",
   "owner": {
     "name": "OLIX-boop"
   },
@@ -9,7 +9,7 @@
     {
       "name": "astpack",
       "source": "./claude-plugin",
-      "description": "Read code as skeletons (signatures, types, docs; no function bodies) to get oriented in a project for a fraction of the tokens."
+      "description": "Read code as skeletons (signatures, types, docs; no function bodies) and documents (PDF, Office, EPUB) as text, for a fraction of the tokens."
     }
   ]
 }

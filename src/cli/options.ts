@@ -32,6 +32,7 @@ export interface PackCliOptions {
   deps?: boolean;
   instructions?: string;
   followSymlinks?: boolean;
+  documents: boolean;
   redact: boolean;
   changed?: string | boolean;
   diff?: string | boolean;

@@ -14,7 +14,8 @@
 </p>
 
 astpack reads your code with Tree-sitter and keeps what an LLM needs to understand it (imports, types,
-signatures, classes, docs) while dropping function bodies. The files you are working on stay complete.
+signatures, classes, docs) while dropping function bodies. The files you are working on stay complete. PDFs,
+Word, PowerPoint and Excel files come out as compact Markdown, locally, with no API key.
 
 ## Quick start
 
@@ -52,6 +53,17 @@ npx astpack --changed ORIG_HEAD --diff -c
 The files the pull changed come in full with the diff, the rest of the project as a skeleton: one paste and
 the model is up to date. With the plugin, just ask Claude *"what changed since my last pull?"*.
 
+### 4. Read documents as text
+
+```sh
+npx astpack doc report.pdf                        # whole if short, else an outline of its headings
+npx astpack doc report.pdf --section "Results"    # just the part you need
+npx astpack doc notes.pdf --images pages/         # handwritten or scanned pages as cropped images
+```
+
+PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, RTF and e-mail. In Claude Code the plugin does this by
+itself, and handwritten pages it has looked at once are saved as text for next time. [More on documents](#documents).
+
 ## How much you save
 
 <picture>
@@ -66,6 +78,8 @@ the model is up to date. With the plugin, just ask Claude *"what changed since m
 | VS Code sources (11,453 files) | 35.5M tokens | 12.3M tokens | **−65%** |
 | *Python Data Science Handbook* notebooks | 9.3M tokens | 186k tokens | **−98%** |
 | Claude Code, looking up a feature's API ([plugin evals](#claude-code-plugin)) | reads whole files | reads skeletons | **≈ −40% cost** |
+| A 10-page PDF manual, read by Claude | ≈ 25k tokens (text + an image per page) | 9.8k as text, 450 as an outline | **−61% / −98%** |
+| A page of handwritten notes | ≈ 1,500 tokens (full-page image) | 540 cropped; text once transcribed | **−65%, then ≈ −80%** |
 
 Fewer tokens means cheaper requests, more room left in the context window and, for whole projects, fitting at
 all: zod raw is 2.5M tokens, more than most context windows hold; its skeleton is a fifth of that.
@@ -112,6 +126,7 @@ On real projects that is **49–88% fewer tokens** than packing raw source, and 
 - [Claude Code plugin](#claude-code-plugin)
 - [MCP server](#mcp-server)
 - [GitHub Action](#github-action)
+- [Documents](#documents)
 - [Supported languages](#supported-languages)
 - [Benchmarks](#benchmarks)
 - [Programmatic API](#programmatic-api)
@@ -265,7 +280,12 @@ astpack summary
 - **Find the right files** — `--query "invoice pdf export"` focuses the most relevant files; `--related`
   adds their imports and importers.
 - **Fast re-runs** — an on-disk cache means only changed files are re-processed.
-- **MCP server** — `astpack mcp` exposes `pack_codebase`, `estimate_tokens` and `skeleton_file` to Claude and other agents.
+- **Documents** — PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, RTF and e-mail become Markdown (headings,
+  tables, lists), condensed or outlined like code; handwritten and scanned PDF pages are detected and rendered
+  as cropped images for a vision model, and transcribed once.
+- **Data files** — CSV, JSON Lines, large JSON and SVG are sampled instead of cut off.
+- **MCP server** — `astpack mcp` exposes `pack_codebase`, `estimate_tokens`, `skeleton_file` and
+  `read_document` to Claude and other agents.
 - **Zero config, zero compilation** — WASM grammars, no native build step; an optional `astpack.config.json`
   when you want defaults per project.
 
@@ -525,6 +545,7 @@ This is a safety net, not a guarantee. Keep secrets out of your repository.
 | `--deps` | Include the internal import graph (`file -> files it imports`). |
 | `--instructions <text>` | Instructions at the top of the document; `@file` reads a file. |
 | `--follow-symlinks` | Follow symbolic links. |
+| `--no-documents` | Leave out documents (PDF, Office, OpenDocument, EPUB, RTF, e-mail). |
 | `--no-redact` | Don't mask likely secrets. |
 | `--changed [ref]` | Focus files changed vs a git ref (default `HEAD`: uncommitted and untracked; `@base`: the base branch). |
 | `--diff [ref]` | Include the git diff vs a ref (default: the `--changed` ref, or `HEAD`). |
@@ -547,6 +568,7 @@ This is a safety net, not a guarantee. Keep secrets out of your repository.
 | `astpack init [directory] [--force]` | Create `astpack.config.json` and a commented `.packignore`. |
 | `astpack mcp [roots...]` | Run the MCP server over stdio (see [MCP server](#mcp-server)). |
 | `astpack tree [directory] [--depth n] [--min pct] [--full\|--outline]` | Show where the tokens are: a directory tree with packed and raw token totals, largest first. |
+| `astpack doc <files...> [--full\|--skeleton\|--outline] [--section text] [--pages list] [--images dir]` | Documents as Markdown (see [Documents](#documents)); `-o` and `-c` write to a file or the clipboard. |
 | `astpack cache [clear]` | Show the on-disk cache's location and size, or delete it. |
 
 Environment: `NO_COLOR` / `FORCE_COLOR` control colours; `ASTPACK_WASM_TIERUP=1` keeps V8's default
@@ -594,10 +616,10 @@ It bundles three things:
 - **The MCP server** (below), with instructions on when to use it.
 - **A skill** that Claude loads when it starts in a project cold (a new session, another computer, a fresh
   clone), is asked for an overview, needs to locate a feature or learn a file's API, or is catching up on
-  pulled changes. It also says when not to: files about to be edited, small files, and anything that isn't code.
+  pulled changes, and when it opens a document. It also says when not to: files about to be edited and small files.
 - **A gentle Read hook.** The first time in a session that Claude reads a large source file (6 KB or more) in
-  full, the hook suggests `skeleton_file` instead. Reading the file again goes through, so Claude is never
-  blocked. Set `ASTPACK_READ_HINT=0` to turn the hook off.
+  full, the hook suggests `skeleton_file` instead; the first time it reads a document, `read_document`.
+  Reading the file again goes through, so Claude is never blocked. Set `ASTPACK_READ_HINT=0` to turn the hook off.
 
 It costs about 230 tokens per session when unused. Its eval suite (`claude-plugin/evals`, run with
 `claude plugin eval`) checks both directions: Claude uses astpack on cold starts and when looking up a
@@ -613,8 +635,10 @@ pack code themselves:
 | `pack_codebase` | The packed document for a directory: `focus`, `changed`, `query` / `queryLimit`, `related`, `mode` (`skeleton`/`full`/`outline`), `comments`, `include`, `ignore`, `order`, `format`, `maxTokens`, `deps`. |
 | `estimate_tokens` | Packed vs raw token counts and the largest files, without the document, to pick focus and budgets. |
 | `skeleton_file` | Skeletons of one file (`path`) or up to 20 (`paths`): a cheap way to read their API. |
+| `read_document` | A document as Markdown: `mode` (`auto`/`full`/`skeleton`/`outline`), `section`, `pages`. Pages that need looking at (handwriting, scans) are attached as images. |
+| `save_transcription` | Saves what such pages say (`path`, `pages: [{ page, text }]`) in `.astpack/transcripts/`, so later reads return text. |
 
-All tools are read-only and limited to the roots given on the command line (default: the directory the server
+All tools except `save_transcription` are read-only, and all are limited to the roots given on the command line (default: the directory the server
 starts in).
 
 **Claude Code**
@@ -652,6 +676,40 @@ job summary:
 
 Inputs: `path`, `args`, `format`, `output`, `version` (npm version, default `latest`), `upload`, `artifact-name`,
 `summary`. Outputs: `output-path`, `files`, `tokens`, `raw-tokens`, `saved-percent`.
+
+## Documents
+
+Documents are converted to Markdown on your machine, with no service or API key involved:
+
+| Format | Extensions | What you get |
+| --- | --- | --- |
+| PDF | `.pdf` | Headings (from font sizes), paragraphs, tables, lists and code blocks; running headers, footers and page numbers removed; `<!-- page N -->` markers |
+| Word | `.docx` `.docm` `.dotx` | Headings, lists, tables, footnotes, image descriptions |
+| PowerPoint | `.pptx` `.ppsx` `.potx` | One section per slide: title, bullets by level, tables, speaker notes |
+| Excel | `.xlsx` `.xlsm` `.xltx` | Each visible sheet as CSV, with dates as dates and cached formula results |
+| OpenDocument | `.odt` `.ods` `.odp` | The same, for LibreOffice files |
+| EPUB | `.epub` | The chapters in reading order |
+| RTF, e-mail | `.rtf` `.eml` | The text; for e-mail the headers, body and a list of attachments |
+| HTML | `.html` `.htm` | The readable content (with `astpack doc` and `read_document` only: in a project, HTML is source code) |
+
+Packing a directory includes the documents in it: skeleton mode keeps a document's headings and the first
+sentences of each section (`[… 12 more paragraphs, 2,340 words]` marks the cuts), outline mode lists the
+headings with the size of each section, full mode and `--focus` keep the whole text. `--no-documents` leaves
+them out. `astpack doc` reads one document at a time and picks the view itself: the whole text when it is
+short, otherwise the outline, from which you ask for a `--section` or `--pages`.
+
+**Handwriting and scans.** Some PDF pages have no text at all: notes written with a pen (OneNote and tablet
+exports draw them as vector strokes), scanned pages, photos. astpack recognises them page by page, also when a
+page mixes typed text with handwriting, and marks them, e.g. `[page 4: handwriting or drawing, no text layer]`.
+For a model that can see, `astpack doc --images` (or `read_document` in the MCP server) renders exactly those
+pages as grayscale PNGs cropped to the ink, skipping blank pages and isolated marks such as page numbers.
+Image tokens grow with area, so a half-filled page costs about half a full one.
+
+Reading a page image costs the same every time, so the model can write down what a page says once:
+`save_transcription` stores the text in `.astpack/transcripts/` in the project, keyed by a hash of the
+document's content. From then on every read (and every pack) includes the transcription instead of the image.
+Commit the folder and the transcriptions travel with the project to your other computers; change the
+document and its old transcriptions stop applying.
 
 ## Supported languages
 
@@ -802,6 +860,11 @@ back and, on Node 24, over a gigabyte of memory. Set `ASTPACK_WASM_TIERUP=1` to 
   from the API. OpenAI counts are exact for the listed encodings. Claude 3.5 Sonnet is retired and can only
   be estimated.
 - **Prices change.** The cost table uses list input prices per million tokens and is meant for comparison.
+- **Documents are rebuilt from layout.** PDF headings, tables and paragraphs are inferred from glyph positions
+  and font sizes: clean for documents exported from word processors and browsers, approximate for complex
+  layouts (several columns, tables without ruled cells, forms). astpack does no OCR: pages without a text layer
+  are left to a model that can read images. Password-protected PDFs and the old binary Office formats (`.doc`,
+  `.xls`, `.ppt`) are skipped.
 
 ## Development
 

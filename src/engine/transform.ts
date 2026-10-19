@@ -3,6 +3,8 @@ import { createHash } from 'node:crypto';
 import type { CommentMode } from '../languages/types.js';
 import { cacheStore } from '../cache/store.js';
 import { isNotebook, notebookToScript } from '../languages/notebook.js';
+import { condenseDocument, documentFormat, outlineDocument } from '../documents/index.js';
+import { condenseData, isDataFile } from '../documents/data.js';
 import { activePool, WorkerFailure } from '../parallel/pool.js';
 import { LruCache } from '../util/lru.js';
 import { redactSecrets, type RedactionHit } from '../security/secrets.js';
@@ -165,7 +167,9 @@ function crashFallback(content: string, language: FileLanguage, bodies: boolean,
 const cache = new LruCache<string, TransformedFile>(20_000, 256 * 1024 * 1024, (f) => f.content.length * 2 + 256);
 
 function cacheKey(filePath: string, content: string, options: TransformOptions): string {
-  const kind = isNotebook(filePath) ? 'notebook' : (embeddedForPath(filePath)?.id ?? languageForPath(filePath)?.id ?? '');
+  const kind = isNotebook(filePath)
+    ? 'notebook'
+    : (documentFormat(filePath) ?? embeddedForPath(filePath)?.id ?? languageForPath(filePath)?.id ?? (isDataFile(filePath) ? 'data' : ''));
   return createHash('sha1')
     .update(JSON.stringify([kind, options.mode, options.comments, options.placeholder, options.fallback, options.redact !== false]))
     .update('\0')
@@ -189,7 +193,10 @@ export function clearTransformCache(): void {
 export async function computeTransform(filePath: string, content: string, options: TransformOptions): Promise<TransformedFile> {
   let result: TransformedFile;
   const notebook = isNotebook(filePath) ? notebookToScript(content) : undefined;
-  if (notebook) {
+  const document = documentFormat(filePath);
+  if (document) {
+    result = transformDocument(content, document, options);
+  } else if (notebook) {
     // Transform the notebook's code as a script in its kernel language (outputs dropped).
     result = await transformContent(filePath + notebook.extension, notebook.text, options);
     result = { ...result, language: { id: 'notebook', fence: notebook.fence } };
@@ -204,6 +211,23 @@ export async function computeTransform(filePath: string, content: string, option
     if (redacted.hits.length) result = { ...result, content: redacted.content, redactions: redacted.hits };
   }
   return result;
+}
+
+/**
+ * A converted document (its Markdown is the content): kept whole, condensed to the lead of
+ * each section, or outlined as its headings.
+ */
+function transformDocument(markdown: string, format: string, options: TransformOptions): TransformedFile {
+  const content = options.mode === 'outline' ? outlineDocument(markdown) : options.mode === 'skeleton' ? condenseDocument(markdown) : markdown;
+  return {
+    content,
+    strategy: options.mode === 'outline' ? 'outline' : content === markdown ? 'full' : 'skeleton',
+    language: { id: format, fence: 'markdown' },
+    strippedBodies: 0,
+    strippedComments: 0,
+    redactions: [],
+    parseErrors: false,
+  };
 }
 
 /** Produce the packaged content for a single file. */
@@ -278,6 +302,11 @@ export function isGenerated(content: string): boolean {
 }
 
 async function transformContent(filePath: string, content: string, options: TransformOptions): Promise<TransformedFile> {
+  // Data files (CSV, JSON, SVG…) are sampled rather than cut, even when written on one line.
+  const sample = options.mode !== 'full' && isDataFile(filePath) ? condenseData(filePath, content) : undefined;
+  if (sample !== undefined) {
+    return { content: sample, strategy: 'truncated', strippedBodies: 0, strippedComments: 0, redactions: [], parseErrors: false };
+  }
   // Prose puts whole paragraphs on one line; only code and data count as minified.
   if (options.mode !== 'full' && !PROSE.test(filePath) && isMinified(content)) {
     const lines = content.split('\n').length;

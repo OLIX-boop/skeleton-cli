@@ -5,7 +5,27 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-## [0.3.0]
+## [0.4.0]
+
+### Added
+
+- Documents: PDF, Word (`.docx`), PowerPoint (`.pptx`), Excel (`.xlsx`), OpenDocument (`.odt`, `.ods`, `.odp`),
+  EPUB, RTF and e-mail (`.eml`) are converted to Markdown, locally and without API keys. Packing a directory
+  includes them (`--no-documents` or config `documents: false` leaves them out); skeleton mode keeps headings and
+  the first sentences of each section, outline mode only the headings with section sizes.
+- PDFs are read with PDFium (WebAssembly): headings from font sizes, paragraphs, tables, code blocks and
+  hyphenated words are rebuilt; running headers, footers and page numbers dropped. Pages without a text layer
+  (handwriting such as OneNote exports, scans, drawings) are detected, rendered as grayscale images cropped to
+  their content, and can be transcribed once: transcriptions are saved in `.astpack/transcripts/`, keyed by the
+  document's content, and replace the images from then on.
+- `astpack doc <files...>`: documents as Markdown, whole or by `--section` / `--pages`, as `--outline` or
+  `--skeleton`; `--images <dir>` saves the pages that need looking at as PNGs. HTML is converted here too.
+- MCP tools `read_document` (small documents whole, long ones as an outline; images of pages to look at) and
+  `save_transcription`. `skeleton_file` returns condensed text for documents. The plugin's Read hook suggests
+  `read_document` the first time Claude reads a document.
+- Data files outside full mode: CSV and TSV keep the header and 20 rows, JSON Lines 5 records, large JSON its
+  shape (long arrays and maps shortened), SVG images a one-line description.
+
 
 ### Added
 

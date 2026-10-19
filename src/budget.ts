@@ -3,6 +3,7 @@ import type { CommentMode } from './languages/types.js';
 import { fenceForStrategy, type PackedFile, type PackResult } from './pack.js';
 import { TokenCounter, type EncodingName } from './tokens/index.js';
 import { TEST_PATH } from './util/paths.js';
+import { isDocument } from './documents/index.js';
 
 /** One rung of the compression ladder. */
 interface Level {
@@ -63,6 +64,10 @@ function ladder(start: PackedFile, baseComments: CommentMode): Level[] {
   const levels: Level[] = [];
   if (start.strategy === 'outline') {
     levels.push({ name: 'outline', mode: 'outline' });
+  } else if (isDocument(start.path)) {
+    // Documents: whole → condensed to section leads → headings only.
+    if (start.strategy === 'full') levels.push({ name: 'full', mode: 'full' });
+    levels.push({ name: 'skeleton', mode: 'skeleton' }, { name: 'outline', mode: 'outline' });
   } else if (start.strategy === 'full' && !start.language) {
     // Unsupported file: full -> truncated -> omitted.
     levels.push({ name: 'full', mode: 'full' }, { name: 'skeleton', mode: 'skeleton' });

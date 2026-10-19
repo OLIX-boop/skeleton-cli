@@ -36,6 +36,7 @@ export interface AstpackConfig {
   deps?: boolean;
   instructions?: string;
   followSymlinks?: boolean;
+  documents?: boolean;
   redact?: boolean;
   changed?: string | boolean;
   diff?: string | boolean;
@@ -74,6 +75,7 @@ export const CONFIG_SCHEMA: Record<keyof AstpackConfig, { kind: Kind; descriptio
   deps: { kind: 'boolean', description: 'Include the internal import graph.' },
   instructions: { kind: 'string', description: 'Instructions placed at the top (prefix with @ to read a file).' },
   followSymlinks: { kind: 'boolean', description: 'Follow symbolic links.' },
+  documents: { kind: 'boolean', description: 'Include documents (PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, RTF, e-mail) converted to text.' },
   redact: { kind: 'boolean', description: 'Mask likely secrets.' },
   changed: { kind: 'string|boolean', description: 'Focus files changed vs a git ref (true = HEAD).' },
   diff: { kind: 'string|boolean', description: 'Include the git diff vs a ref (true = the --changed ref or HEAD).' },

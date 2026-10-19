@@ -316,6 +316,7 @@ export async function packCommand(directory: string, command: Command, io: CliIO
         include: opts.include,
         maxFileSize: opts.maxFileSize,
         followSymlinks: opts.followSymlinks,
+        documents: opts.documents,
         onProgress: showProgress
           ? (done, total) => {
               if (done === total || done % 25 === 0) io.stderr.write(`\r${errColors.dim(`Packing ${done}/${total} files…`)}`);

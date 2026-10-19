@@ -5,6 +5,7 @@ import { MODELS } from '../tokens/index.js';
 import { FILE_ORDERS } from '../order.js';
 import { VERSION } from '../version.js';
 import { parsePositiveInt, parseSize, parseTokenCount } from './format.js';
+import { docCommand } from './doc-command.js';
 import { initCommand } from './init-command.js';
 import { treeCommand } from './tree-command.js';
 import { packCommand, type CliIO } from './pack-command.js';
@@ -83,6 +84,7 @@ export function buildProgram(io: CliIO, setExit: (code: number) => void): Comman
     .option('--deps', 'include the internal import graph (which file imports which)')
     .option('--instructions <text>', 'instructions placed at the top of the document (prefix with @ to read a file)')
     .option('--follow-symlinks', 'follow symbolic links')
+    .option('--no-documents', 'leave out documents (PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, RTF, e-mail)')
     .option('--no-redact', 'do not mask likely secrets (API keys, tokens, private keys, passwords)')
     .addOption(
       new Option('--preset <name>', `ready-made options and instructions: ${presetNames().map((n) => `${n} (${PRESETS[n]!.description})`).join('; ')}`).choices(
@@ -146,6 +148,24 @@ Examples:
     });
 
   program
+    .command('doc')
+    .description('convert documents (PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, RTF, e-mail, HTML) to Markdown')
+    .argument('<files...>', 'documents to read')
+    .option('--full', 'the whole text (default for documents up to ~6k tokens)')
+    .option('--skeleton', 'headings and the first sentences of each section')
+    .option('--outline', 'headings only, with the size of each section (default for longer documents)')
+    .option('--section <heading>', 'only the sections whose heading contains this text')
+    .option('--pages <list>', 'only these pages, e.g. 3 or 2-5,9')
+    .option('--images <dir>', 'save pages with handwriting or images (and no transcription yet) as compact PNGs in this folder')
+    .option('-o, --output <file>', 'write to a file instead of stdout')
+    .option('-c, --clipboard', 'copy to the clipboard')
+    .option('--no-redact', 'do not mask likely secrets')
+    .option('--no-cache', 'do not read or write the on-disk cache')
+    .action(async (files: string[], _opts, command: Command) => {
+      setExit(await docCommand(files, command, io));
+    });
+
+  program
     .command('cache')
     .description('show the on-disk cache (location, files, size); `astpack cache clear` deletes it')
     .argument('[action]', '"clear" to delete the cache')
@@ -169,7 +189,7 @@ Examples:
 
   program
     .command('mcp')
-    .description('run a Model Context Protocol server over stdio (tools: pack_codebase, estimate_tokens, skeleton_file)')
+    .description('run a Model Context Protocol server over stdio (tools: pack_codebase, estimate_tokens, skeleton_file, read_document, save_transcription)')
     .argument('[roots...]', 'directories the tools may read (default: the current directory)')
     .action(async (roots: string[]) => {
       const { AstpackMcpServer, serveStdio } = await import('../mcp/server.js');

@@ -8,8 +8,10 @@ description: >-
   skeleton_file; when starting in a project for the first time in a session (cold start, another computer,
   fresh clone, "give me an overview", "how is this organised", "explain this codebase"), or before opening
   more than a few files, use pack_codebase (mode outline for large projects); to locate a feature, use
-  pack_codebase with query; to catch up on pulled changes, use changed. Not for files you are about to edit,
-  small files, or non-code files.
+  pack_codebase with query; to catch up on pulled changes, use changed. For documents (PDF, Word, PowerPoint,
+  Excel, OpenDocument, EPUB, RTF, e-mail), use read_document instead of Read: text instead of page images,
+  an outline first for long ones, handwritten or scanned pages as cropped images, saved with
+  save_transcription so they are text next time. Not for code files you are about to edit or small files.
 ---
 
 # astpack: understand code without reading every line
@@ -47,6 +49,15 @@ Reach for astpack first in these situations. Skipping it here wastes the most to
 5. **Big context on a budget.** When a broad view must fit a limit, pass `maxTokens` and astpack
    compresses file by file (full → skeleton → outline → omitted) until it fits.
 
+6. **Reading documents.** For a PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, RTF or e-mail file, call
+   `read_document` instead of `Read`. Reading a PDF directly sends every page as an image plus its text; the
+   converted Markdown costs a fraction. Small documents come back whole; long ones as an outline of headings
+   with section sizes: then ask for the `section` (by heading text) or `pages` you need.
+   Pages with handwriting (OneNote exports, tablet notes), scans or drawings have no text layer: they come back
+   as compact images, cropped to the content. After reading them, call `save_transcription` with what each
+   page says (text, lists, formulas, a short description of drawings): later reads, in any session or on
+   another machine once `.astpack/` is committed, get that text instead of images.
+
 ## When not to use it
 
 Read files the normal way when:
@@ -67,6 +78,8 @@ A good pattern is skeleton first, then full reads of just the files you will cha
 | `pack_codebase` | The project as one document: tree plus every file, skeletonized. Key arguments: `mode` (`skeleton` / `outline` / `full`), `focus` (files kept verbatim), `query`, `related`, `changed`, `include` / `ignore`, `maxTokens`, `deps` (import graph). `path` defaults to the project root. |
 | `estimate_tokens` | What `pack_codebase` would cost, the raw size and the largest files, without the document. Cheap; use it before packing an unfamiliar or large project. |
 | `skeleton_file` | One file (`path`) or up to 20 (`paths`) with bodies stripped. |
+| `read_document` | A document as Markdown: `mode` (`auto` / `full` / `skeleton` / `outline`), `section`, `pages`. Attaches images of pages that need looking at. |
+| `save_transcription` | Store what looked-at pages say (`path`, `pages: [{ page, text }]`), reused by every later read. |
 
 ## Without the MCP server
 
@@ -78,6 +91,9 @@ npx -y astpack --stdout -q                  # skeleton of everything
 npx -y astpack --stdout -q --query "invoice pdf export" --related
 npx -y astpack --stdout -q --changed ORIG_HEAD --diff
 npx -y astpack --dry-run                    # just the token counts
+npx -y astpack doc report.pdf               # a document as Markdown (outline if long)
+npx -y astpack doc report.pdf --section "Results" --pages 3-5
+npx -y astpack doc notes.pdf --images /tmp/pages   # handwritten pages as cropped PNGs to view
 ```
 
 ## Reading the output

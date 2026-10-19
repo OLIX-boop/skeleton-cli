@@ -1,5 +1,5 @@
 import { realpathSync } from 'node:fs';
-import { realpath, stat } from 'node:fs/promises';
+import { readFile, realpath, stat } from 'node:fs/promises';
 import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
 import { fitToBudget } from '../budget.js';
 import { dependencyGraph } from '../deps.js';
@@ -8,6 +8,8 @@ import { changedFiles } from '../git.js';
 import type { CommentMode } from '../languages/types.js';
 import { render, type OutputFormat } from '../output/index.js';
 import { FILE_ORDERS, orderFiles, type FileOrder } from '../order.js';
+import { contentHash, documentFormat, DocumentError, parsePages, renderPdfPages, saveTranscripts, transcriptRoot } from '../documents/index.js';
+import { readDocument, type ReadMode } from '../documents/read.js';
 import { pack, readText } from '../pack.js';
 import { computeStats, DEFAULT_MODELS, prefetchStats, TokenCounter } from '../tokens/index.js';
 import { VERSION } from '../version.js';
@@ -46,8 +48,10 @@ class RpcError extends Error {
 /** Thrown by tools for user-facing failures; reported as `isError` tool results. */
 class ToolError extends Error {}
 
+type ToolContent = { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string };
+
 interface ToolResult {
-  content: { type: 'text'; text: string }[];
+  content: ToolContent[];
   structuredContent?: Record<string, unknown>;
   isError?: boolean;
 }
@@ -57,6 +61,8 @@ interface ToolDefinition {
   title: string;
   description: string;
   inputSchema: Record<string, unknown>;
+  /** The tool writes files (default: read-only). */
+  writes?: boolean;
   run(args: Record<string, unknown>): Promise<ToolResult>;
 }
 
@@ -172,12 +178,12 @@ export class AstpackMcpServer {
         return {};
       case 'tools/list':
         return {
-          tools: this.tools.map(({ name, title, description, inputSchema }) => ({
+          tools: this.tools.map(({ name, title, description, inputSchema, writes }) => ({
             name,
             title,
             description,
             inputSchema,
-            annotations: { readOnlyHint: true, openWorldHint: false },
+            annotations: { readOnlyHint: !writes, ...(writes ? { destructiveHint: false, idempotentHint: true } : {}), openWorldHint: false },
           })),
         };
       case 'tools/call': {
@@ -220,6 +226,25 @@ export class AstpackMcpServer {
     return real;
   }
 
+  /** The allowed root that contains `real` (a resolved path inside one). */
+  private rootOf(real: string): string {
+    const fold = (p: string) => (process.platform === 'win32' ? p.toLowerCase() : p);
+    const inside = (root: string) => {
+      const rel = relative(fold(root), fold(real));
+      return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel));
+    };
+    // The deepest root wins when roots are nested.
+    return this.roots.filter(inside).sort((a, b) => b.length - a.length)[0] ?? this.roots[0] ?? this.cwd;
+  }
+
+  /** Where a document's transcriptions go: its project folder, if that is inside the allowed roots. */
+  private transcriptFolder(file: string): string {
+    const root = this.rootOf(file);
+    const project = transcriptRoot(file, root);
+    const rel = relative(root, project);
+    return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel)) ? project : root;
+  }
+
   private defineTools(): ToolDefinition[] {
     const packProperties = {
       path: { type: 'string', description: 'Project directory (absolute, or relative to the server root). Default: the server root.' },
@@ -249,6 +274,7 @@ export class AstpackMcpServer {
       include: { type: 'array', items: { type: 'string' }, description: 'Only include files matching these gitignore-style patterns.' },
       ignore: { type: 'array', items: { type: 'string' }, description: 'Extra gitignore-style patterns to exclude.' },
       maxTokens: { type: 'number', description: 'Compress and omit files until the document fits this many tokens.' },
+      documents: { type: 'boolean', description: 'Include documents (PDF, Office, EPUB, RTF, e-mail) converted to text (default true).' },
     };
 
     const runPack = async (args: Record<string, unknown>) => {
@@ -269,7 +295,8 @@ export class AstpackMcpServer {
       if (!info?.isDirectory()) throw new ToolError(`${root} is not a directory`);
       const focus = focusArgs.map((f) => (/[*?[\]{}]/.test(f) ? f : resolve(root, f)));
       if (changed) focus.push(...(await changedFiles(root, changed)));
-      const packed = await pack(root, { mode, focus, related, query, queryLimit: queryLimit && Math.floor(queryLimit), cwd: root, comments, include, ignore });
+      const documents = args.documents !== false;
+      const packed = await pack(root, { mode, focus, related, query, queryLimit: queryLimit && Math.floor(queryLimit), cwd: root, comments, include, ignore, documents });
       return { root, result: await orderFiles(packed, order), comments };
     };
 
@@ -405,6 +432,13 @@ export class AstpackMcpServer {
               const file = await this.resolvePath(input);
               const info = await stat(file).catch(() => undefined);
               if (!info?.isFile()) throw new ToolError(`${input} is not a file`);
+              if (documentFormat(file, true)) {
+                // A document: its condensed text (read_document reads it in full or by part).
+                const read = await readDocument(file, { mode: 'skeleton', root: this.transcriptFolder(file) });
+                const out = { content: read.text, strategy: read.view, language: { id: read.document.format } };
+                files.push({ input, out, tokens: read.tokens, rawTokens: read.documentTokens });
+                continue;
+              }
               const content = await readText(file);
               const out = await transformFile(file, content, { mode: 'skeleton', comments, fallback: { maxLines: 400, maxChars: 40_000 } });
               files.push({ input, out, tokens: counter.count(out.content), rawTokens: counter.count(content) });
@@ -431,6 +465,151 @@ export class AstpackMcpServer {
           }
         },
       },
+      {
+        name: 'read_document',
+        title: 'Read document',
+        description:
+          'A document as Markdown: PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, RTF, e-mail or HTML. Use it instead ' +
+          'of reading such files directly: text costs a fraction of page images. Small documents come back whole, larger ' +
+          'ones as an outline of headings; then ask for a `section` (by heading) or `pages`. Pages with handwriting, ' +
+          'scans or drawings (no text layer) come back as compact images: after reading them, call save_transcription ' +
+          'so the next read gets text instead.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: 'The document (absolute, or relative to the server root).' },
+            mode: {
+              type: 'string',
+              enum: ['auto', 'full', 'skeleton', 'outline'],
+              description: 'auto (default): whole if small, else outline. skeleton: headings plus the first sentences of each section.',
+            },
+            section: { type: 'string', description: 'Only the sections whose heading contains this text.' },
+            pages: {
+              description: 'Only these pages: an array of numbers or a string such as "3" or "2-5,9".',
+              anyOf: [{ type: 'array', items: { type: 'number' } }, { type: 'string' }],
+            },
+            images: { type: 'boolean', description: 'Attach images of the pages in the result that need looking at (default true).' },
+          },
+          required: ['path'],
+          additionalProperties: false,
+        },
+        run: async (args) => {
+          const input = str(args, 'path', true)!;
+          const mode = oneOf<ReadMode>(args, 'mode', ['auto', 'full', 'skeleton', 'outline']);
+          const section = str(args, 'section');
+          let pages: number[] | undefined;
+          const rawPages = args.pages;
+          if (rawPages !== undefined && rawPages !== null) {
+            if (!(typeof rawPages === 'string' || (Array.isArray(rawPages) && rawPages.every((p) => Number.isInteger(p))))) {
+              throw new RpcError(ErrorCode.InvalidParams, '"pages" must be an array of page numbers or a string such as "2-5"');
+            }
+            try {
+              pages = parsePages(rawPages as string | number[]);
+            } catch (error) {
+              throw new RpcError(ErrorCode.InvalidParams, (error as Error).message);
+            }
+          }
+          const file = await this.resolvePath(input);
+          const info = await stat(file).catch(() => undefined);
+          if (!info?.isFile()) throw new ToolError(`${input} is not a file`);
+          if (!documentFormat(file, true)) throw new ToolError(`${input} is not a supported document; use skeleton_file or Read for code and text`);
+          let result;
+          try {
+            result = await readDocument(file, { mode, section, pages, root: this.transcriptFolder(file) });
+          } catch (error) {
+            if (error instanceof DocumentError) throw new ToolError(error.message);
+            throw error;
+          }
+          const content: ToolContent[] = [{ type: 'text', text: result.text }];
+          const wanted = args.images === false ? [] : result.pending.slice(0, MAX_DOCUMENT_IMAGES);
+          const images = wanted.length && result.document.format === 'pdf' ? await renderPdfPages(result.document.bytes, wanted.map((v) => v.page)) : [];
+          for (const image of images) {
+            content.push({ type: 'text', text: `Page ${image.page}:` });
+            content.push({ type: 'image', data: Buffer.from(image.png).toString('base64'), mimeType: 'image/png' });
+          }
+          const rest = result.pending.length - wanted.length;
+          if (images.length) {
+            content.push({
+              type: 'text',
+              text:
+                `Transcribe what ${images.length === 1 ? 'this page says' : 'these pages say'} and call save_transcription ` +
+                `(path, pages: [{ page, text }]) so later reads return the text instead of images.` +
+                (rest > 0 ? ` ${rest} more page${rest === 1 ? '' : 's'} need looking at: request them with \`pages\`.` : ''),
+            });
+          } else if (result.pending.length && args.images !== false) {
+            content.push({ type: 'text', text: `Pages ${result.pending.map((v) => v.page).join(', ')} hold handwriting or images: request them with \`pages\` to see them.` });
+          }
+          return {
+            content,
+            structuredContent: {
+              path: input,
+              format: result.document.format,
+              pages: result.document.pages ?? null,
+              view: result.view,
+              tokens: result.tokens,
+              documentTokens: result.documentTokens,
+              imagePages: images.map((i) => i.page),
+              imageTokens: images.reduce((n, i) => n + i.tokens, 0),
+              pendingPages: result.pending.map((v) => v.page),
+              // Some clients show the model only structuredContent: the text must be in it too.
+              text: result.text,
+            },
+          };
+        },
+      },
+      {
+        name: 'save_transcription',
+        title: 'Save transcription',
+        description:
+          'Save what pages of a document say (pages read_document returned as images: handwriting, scans, drawings), so ' +
+          'future reads return this text instead of images, in this and later sessions. Stored in the project under ' +
+          '.astpack/transcripts/, keyed by the document content (commit it to share it across machines).',
+        writes: true,
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: 'The document (absolute, or relative to the server root).' },
+            pages: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: { page: { type: 'number' }, text: { type: 'string', description: 'The page content as Markdown: text, lists, formulas, descriptions of drawings.' } },
+                required: ['page', 'text'],
+                additionalProperties: false,
+              },
+              description: 'One entry per page.',
+            },
+          },
+          required: ['path', 'pages'],
+          additionalProperties: false,
+        },
+        run: async (args) => {
+          const input = str(args, 'path', true)!;
+          const entries = args.pages;
+          if (
+            !Array.isArray(entries) ||
+            !entries.length ||
+            !entries.every((e) => e && typeof e === 'object' && Number.isInteger((e as { page: unknown }).page) && typeof (e as { text: unknown }).text === 'string')
+          ) {
+            throw new RpcError(ErrorCode.InvalidParams, '"pages" must be a non-empty array of { page, text }');
+          }
+          const file = await this.resolvePath(input);
+          if (!documentFormat(file, true)) throw new ToolError(`${input} is not a supported document`);
+          const bytes = await readFile(file);
+          const folder = this.transcriptFolder(file);
+          const pages: Record<string, string> = {};
+          for (const e of entries as { page: number; text: string }[]) {
+            if (e.page < 1) throw new RpcError(ErrorCode.InvalidParams, `invalid page ${e.page}`);
+            pages[String(e.page)] = e.text;
+          }
+          const written = await saveTranscripts(folder, contentHash(bytes), file, pages);
+          const list = Object.keys(pages).join(', ');
+          return {
+            content: [{ type: 'text', text: `Saved page${entries.length === 1 ? '' : 's'} ${list} of ${input} to ${relative(this.cwd, written) || written}.` }],
+            structuredContent: { path: input, pages: Object.keys(pages).map(Number), file: written },
+          };
+        },
+      },
     ];
   }
 }
@@ -448,11 +627,16 @@ export const SERVER_INSTRUCTIONS = [
   '- Finding where something is implemented: pack_codebase with `query` describing it.',
   '- Learning what a file or module offers (its API, not its internals): skeleton_file, which takes several paths at once.',
   '- Catching up on changes made elsewhere: pack_codebase with `changed` (e.g. "ORIG_HEAD" after a pull) and the rest as skeletons.',
-  'Read files normally when you are about to edit them, need exact implementation details, the file is small, or it is',
-  'not code. estimate_tokens tells you what a pack would cost before you request it.',
+  '- Reading a document (PDF, Word, PowerPoint, Excel, OpenDocument, EPUB, RTF, e-mail): read_document instead of Read.',
+  '  It returns text (an outline first when long); handwritten or scanned pages come back as images: transcribe them',
+  '  with save_transcription so later reads get text.',
+  'Read code files normally when you are about to edit them, need exact implementation details, or the file is small.',
+  'estimate_tokens tells you what a pack would cost before you request it.',
 ].join('\n');
 
 const MAX_SKELETON_FILES = 20;
+/** Page images attached to one read_document result. */
+const MAX_DOCUMENT_IMAGES = 8;
 
 /** Serve MCP over stdio (newline-delimited JSON-RPC). Resolves when stdin closes. */
 export async function serveStdio(server: AstpackMcpServer, input: NodeJS.ReadableStream = process.stdin, output: NodeJS.WritableStream = process.stdout): Promise<void> {
